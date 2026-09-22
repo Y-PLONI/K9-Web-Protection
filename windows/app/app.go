@@ -294,9 +294,7 @@ func (a *App) GetContentSettings() ContentSettings {
 	}
 }
 
-// GetLevelCategories returns the category identifiers each standard filter
-// level blocks, so the UI can render preset contents without keeping its own
-// copy of the mapping. The order within each level is preserved.
+// GetLevelCategories returns the identifiers each standard filter level blocks, in order.
 func (a *App) GetLevelCategories() map[string][]string {
 	out := make(map[string][]string, len(proxy.LevelCategories))
 	for level, cats := range proxy.LevelCategories {
@@ -340,9 +338,7 @@ func (a *App) SaveContentSettings(password string, s ContentSettings) error {
 // GetLanguage returns the language the backend is currently rendering in.
 func (a *App) GetLanguage() string { return i18n.Lang() }
 
-// SetLanguage switches the backend language and persists it, so the window
-// title and the proxy block page stay in step with the language shown in
-// the UI.
+// SetLanguage switches the backend language and persists it.
 func (a *App) SetLanguage(lang string) error {
 	switch lang {
 	case "he", "en":
@@ -543,7 +539,7 @@ Remove-Item -Path $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyConti
 
 	tmp, err := os.CreateTemp("", "k10-uninstall-*.ps1")
 	if err != nil {
-		return fmt.Errorf(i18n.T("err.prepareUninstallScript")+": %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("err.prepareUninstallScript"), err)
 	}
 	scriptPath := tmp.Name()
 	tmp.WriteString(cleanupScript)
@@ -561,7 +557,7 @@ Remove-Item -Path $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyConti
 	)
 	if err := cmd.Run(); err != nil {
 		os.Remove(scriptPath)
-		return fmt.Errorf(i18n.T("err.uninstallNeedsAdmin")+": %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("err.uninstallNeedsAdmin"), err)
 	}
 
 	go func() {
@@ -590,7 +586,7 @@ func (a *App) InstallCACert() error {
 	)
 	tmp, err := os.CreateTemp("", "k10-ca-install-*.ps1")
 	if err != nil {
-		return fmt.Errorf(i18n.T("err.prepareInstallScript")+": %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("err.prepareInstallScript"), err)
 	}
 	scriptPath := tmp.Name()
 	tmp.WriteString(script)
@@ -603,7 +599,7 @@ func (a *App) InstallCACert() error {
 		),
 	)
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf(i18n.T("err.caInstallNeedsAdmin")+": %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("err.caInstallNeedsAdmin"), err)
 	}
 	return nil
 }
@@ -626,7 +622,7 @@ func (a *App) startProxyAndWait() error {
 	for time.Now().Before(deadline) {
 		select {
 		case err := <-errCh:
-			return fmt.Errorf(i18n.T("err.proxyFailedToStart")+": %w", err)
+			return fmt.Errorf("%s: %w", i18n.T("err.proxyFailedToStart"), err)
 		default:
 		}
 		conn, err := net.DialTimeout("tcp", addr, 100*time.Millisecond)

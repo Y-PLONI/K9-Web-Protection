@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/pem"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"net"
@@ -305,9 +307,7 @@ func (a *App) GetContentSettings() ContentSettings {
 // GetLanguage returns the language the backend is currently rendering in.
 func (a *App) GetLanguage() string { return i18n.Lang() }
 
-// SetLanguage switches the backend language and persists it, so the window
-// title, the proxy block page and the configuration profile stay in step
-// with the language shown in the UI.
+// SetLanguage switches the backend language and persists it.
 func (a *App) SetLanguage(lang string) error {
 	switch lang {
 	case "he", "en":
@@ -340,9 +340,7 @@ func (a *App) SaveAdvancedSettings(password string, s AdvancedSettings) error {
 	return a.cfg.Save()
 }
 
-// GetLevelCategories returns the category identifiers each standard filter
-// level blocks, so the UI can render preset contents without keeping its own
-// copy of the mapping. The order within each level is preserved.
+// GetLevelCategories returns the identifiers each standard filter level blocks, in order.
 func (a *App) GetLevelCategories() map[string][]string {
 	out := make(map[string][]string, len(proxy.LevelCategories))
 	for level, cats := range proxy.LevelCategories {
@@ -559,7 +557,7 @@ rm -f "$0"
 
 	tmp, err := os.CreateTemp("", "k10-uninstall-*.sh")
 	if err != nil {
-		return fmt.Errorf(i18n.T("err.prepareUninstallScript")+": %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("err.prepareUninstallScript"), err)
 	}
 	scriptPath := tmp.Name()
 	tmp.WriteString(cleanupScript)
@@ -579,7 +577,7 @@ rm -f "$0"
 	)
 	if err := exec.Command("osascript", "-e", osaCmd).Run(); err != nil {
 		os.Remove(scriptPath)
-		return fmt.Errorf(i18n.T("err.uninstallNeedsAdmin")+": %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("err.uninstallNeedsAdmin"), err)
 	}
 
 	// Quit the app — the cleanup script removes everything in the background
@@ -619,7 +617,7 @@ func (a *App) startProxyAndWait() error {
 	for time.Now().Before(deadline) {
 		select {
 		case err := <-errCh:
-			return fmt.Errorf(i18n.T("err.proxyFailedToStart")+": %w", err)
+			return fmt.Errorf("%s: %w", i18n.T("err.proxyFailedToStart"), err)
 		default:
 		}
 		conn, err := net.DialTimeout("tcp", addr, 100*time.Millisecond)
@@ -714,6 +712,13 @@ func itoa(n int) string {
 // trusted in macOS Keychain for the HTTPS block page to display correctly.
 func (a *App) CACertPath() string { return proxy.CACertPath() }
 
+// plistString returns a catalog value XML-escaped for a plist <string> element.
+func plistString(key string) string {
+	var b bytes.Buffer
+	xml.EscapeText(&b, []byte(i18n.T(key)))
+	return b.String()
+}
+
 // InstallCACert generates a macOS Configuration Profile (.mobileconfig) embedding
 // the K10 root CA and opens it so the user can approve it in System Settings.
 //
@@ -783,21 +788,21 @@ func (a *App) InstallCACert() error {
 	<integer>1</integer>
 </dict>
 </plist>`,
-		certB64,                          // 1
-		i18n.T("profile.caDescription"),  // 2
-		i18n.T("profile.caDisplayName"),  // 3
-		i18n.T("profile.organization"),   // 4 (used twice)
-		i18n.T("profile.description"),    // 5
-		i18n.T("profile.displayName"),    // 6
+		certB64,                              // 1
+		plistString("profile.caDescription"), // 2
+		plistString("profile.caDisplayName"), // 3
+		plistString("profile.organization"),  // 4 (used twice)
+		plistString("profile.description"),   // 5
+		plistString("profile.displayName"),   // 6
 	)
 
 	tmp := filepath.Join(os.TempDir(), "K10WebProtectionCA.mobileconfig")
 	if err := os.WriteFile(tmp, []byte(profile), 0644); err != nil {
-		return fmt.Errorf(i18n.T("err.writeProfileFailed")+": %v", err)
+		return fmt.Errorf("%s: %v", i18n.T("err.writeProfileFailed"), err)
 	}
 	// Register the profile with macOS (triggers "Profile Downloaded" notification)
 	if err := exec.Command("open", tmp).Run(); err != nil {
-		return fmt.Errorf(i18n.T("err.openProfileFailed")+": %v", err)
+		return fmt.Errorf("%s: %v", i18n.T("err.openProfileFailed"), err)
 	}
 	// Open System Settings directly to the profiles/device-management page.
 	// macOS 13+ (Ventura/Sonoma/Sequoia): General → VPN & Device Management

@@ -47,9 +47,7 @@ Unicode True
 !insertmacro MUI_UNPAGE_FINISH
 
 !insertmacro MUI_LANGUAGE "English"
-; NSIS ships a Hebrew MUI language file (RTL=1), so the wizard mirrors itself.
-; With no language-select dialog, NSIS picks the language matching the user's
-; Windows locale and falls back to the first one inserted (English).
+; Hebrew MUI is RTL; NSIS picks by Windows locale and falls back to English.
 !insertmacro MUI_LANGUAGE "Hebrew"
 
 ; -- Localised installer strings -----------------------------------------------

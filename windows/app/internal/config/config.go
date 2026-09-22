@@ -86,6 +86,9 @@ func configDir() string {
 	return filepath.Join(home, ".k10webprotection")
 }
 
+// legacyBlockedMessage is the pre-i18n English default, migrated to the localized one.
+const legacyBlockedMessage = "This website has been blocked to help you stay focused and protected."
+
 func Load() *Config {
 	dir := configDir()
 	os.MkdirAll(dir, 0700)
@@ -109,12 +112,13 @@ func Load() *Config {
 		json.Unmarshal(data, c)
 		c.path = path
 	}
-	// Activate the configured language before resolving localized defaults.
+	// Load is the single place that activates the configured language.
 	if c.Language == "" {
 		c.Language = i18n.DefaultLang
 	}
 	i18n.SetLang(c.Language)
-	if c.BlockedMessage == "" {
+	c.Language = i18n.Lang() // keep the stored code in step with what actually renders
+	if c.BlockedMessage == "" || c.BlockedMessage == legacyBlockedMessage {
 		c.BlockedMessage = i18n.T("config.blockedMessageDefault")
 	}
 	if len(c.FocusSites) == 0 {

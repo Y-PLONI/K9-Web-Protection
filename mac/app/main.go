@@ -19,8 +19,8 @@ import (
 var assets embed.FS
 
 func main() {
-	// Resolve the UI language before the window is created.
-	i18n.SetLang(config.Load().Language)
+	// Load() is the single place that sets the language; the title below needs it.
+	config.Load()
 
 	app := NewApp()
 

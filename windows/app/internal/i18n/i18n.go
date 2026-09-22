@@ -1,12 +1,4 @@
-// Package i18n is a tiny, dependency-free message catalog for the Go backend.
-//
-// Usage:
-//
-//	i18n.SetLang(cfg.Language)      // once, at startup
-//	i18n.T("err.invalidDomain")     // plain lookup
-//	i18n.T("err.focusModeActive", 5) // fmt.Sprintf-style args
-//
-// Lookup order: active language → "en" → the key itself.
+// Package i18n is a tiny message catalog; lookup order: active language → "en" → the key.
 package i18n
 
 import (
@@ -65,7 +57,7 @@ func T(key string, args ...any) string {
 		s, ok = catalog[FallbackLang][key]
 	}
 	if !ok || s == "" {
-		s = key
+		return key // no catalog entry: never Sprintf over the raw key
 	}
 	if len(args) > 0 {
 		return fmt.Sprintf(s, args...)
@@ -73,11 +65,7 @@ func T(key string, args ...any) string {
 	return s
 }
 
-// catalog maps language code → message key → text.
-//
-// NOTE FOR TRANSLATORS: the "he" block below is currently an exact copy of the
-// "en" block. Translate the "he" values only; never change a key, and keep every
-// fmt verb (%s, %d, %.0f, %v) in place and in the same order.
+// catalog maps language code → message key → text; keep every fmt verb in place and in order.
 var catalog = map[string]map[string]string{
 	"en": {
 		// ── Application chrome ────────────────────────────────────────────
@@ -115,6 +103,7 @@ var catalog = map[string]map[string]string{
 		"block.message": "This website has been blocked by K10 Web Protection because it may contain adult content, malware, phishing attempts, or other material that violates your configured filtering policy.",
 		"block.chipFiltered": "Filtered by K10 Web Protection",
 		"block.chipContact":  "Contact your administrator to request access",
+		// block.copyright is an HTML fragment by design — do not escape it.
 		"block.copyright":    "Copyright &copy; 2024&ndash;2026 K10WebProtection &mdash; All Rights Reserved.",
 
 		// -- macOS-only errors ---------------------------------------------
@@ -130,7 +119,6 @@ var catalog = map[string]map[string]string{
 		"profile.description":   "Installs the K10 Web Protection CA so HTTPS block pages display correctly in all browsers.",
 	},
 
-	// Hebrew — placeholder copy of English, to be filled by the translator.
 	"he": {
 		// ── Application chrome ────────────────────────────────────────────
 		"app.title":       "K10 Web Protection",
@@ -167,6 +155,7 @@ var catalog = map[string]map[string]string{
 		"block.message": "האתר הזה נחסם על ידי K10 Web Protection מכיוון שהוא עשוי להכיל תוכן למבוגרים בלבד, תוכנה זדונית, ניסיונות פישינג, או חומר אחר שמפר את מדיניות הסינון שהוגדרה אצלך.",
 		"block.chipFiltered": "מסונן על ידי K10 Web Protection",
 		"block.chipContact":  "יש לפנות למנהל המערכת כדי לבקש גישה",
+		// block.copyright is an HTML fragment by design — do not escape it.
 		"block.copyright":    "זכויות יוצרים &copy; 2024&ndash;2026 K10WebProtection &mdash; כל הזכויות שמורות.",
 
 		// -- macOS-only errors ---------------------------------------------

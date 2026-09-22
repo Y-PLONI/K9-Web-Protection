@@ -22,9 +22,10 @@ var assets embed.FS
 
 func main() {
 	// Load() is the single place that sets the language; the title below needs it.
-	config.Load()
+	opts := loadOptions()
+	cfg, loadErr := config.LoadWith(opts)
 
-	app := NewApp()
+	app := NewApp(cfg, loadErr, opts)
 
 	err := wails.Run(&options.App{
 		Title:         i18n.T("app.title"),

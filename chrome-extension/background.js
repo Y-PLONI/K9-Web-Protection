@@ -82,7 +82,8 @@ function incrementBlocked(domain) {
 // ── Badge ─────────────────────────────────────────────────────────────────────
 function updateBadge(s) {
   if (!s.enabled) {
-    chrome.action.setBadgeText({ text: chrome.i18n.getMessage('badge_off') })
+    // Language-neutral glyph — the SW can't load i18n.js (module context) and a translated label risks badge clipping
+    chrome.action.setBadgeText({ text: '○' })
     chrome.action.setBadgeBackgroundColor({ color: '#888' })
   } else if (s.focusMode) {
     chrome.action.setBadgeText({ text: '⏱' })

@@ -52,7 +52,7 @@
 
   "web_accessible_resources": [
     {
-      "resources": ["blocked.html", "blocked.css", "blocked.js", "i18n.js", "icons/*.png"],
+      "resources": ["blocked.html"],
       "matches": ["<all_urls>"]
     }
   ],

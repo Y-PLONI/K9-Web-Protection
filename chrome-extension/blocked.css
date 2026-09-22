@@ -25,7 +25,11 @@ body.social {
   text-align: center;
   max-width: 460px;
   width: 90%;
-  animation: fadeUp 0.4s ease;
+  opacity: 0; /* hidden until i18n.js confirms text is in its final language */
+}
+/* Only reveal — and only fade in — once k9i18n has applied the resolved catalog */
+html.k9i18n-ready .card {
+  animation: fadeUp 0.4s ease forwards;
 }
 @keyframes fadeUp {
   from { opacity: 0; transform: translateY(16px); }

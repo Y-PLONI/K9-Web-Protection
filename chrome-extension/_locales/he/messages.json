@@ -4,7 +4,7 @@
     "description": "Extension name in the Chrome Web Store and extensions page."
   },
   "manifest_short_name": {
-    "message": "הגנת K9",
+    "message": "K9 Protection",
     "description": "Short extension name, used where space is limited."
   },
   "manifest_description": {
@@ -14,10 +14,6 @@
   "manifest_action_title": {
     "message": "K9 Web Protection",
     "description": "Tooltip of the toolbar button."
-  },
-  "badge_off": {
-    "message": "כבוי",
-    "description": "Toolbar badge when protection is off. Max 3 characters."
   },
   "popup_page_title": {
     "message": "K9 Web Protection",
@@ -32,11 +28,11 @@
     "description": "Tagline under the product name in the popup header."
   },
   "popup_toggle_enabled_title": {
-    "message": "הפעלה / כיבוי",
+    "message": "הפעלה / השבתה",
     "description": "Tooltip of the master on/off switch."
   },
   "popup_status_loading": {
-    "message": "טוען…",
+    "message": "בטעינה…",
     "description": "Status bar text while the popup loads."
   },
   "popup_stat_blocked_today": {
@@ -44,7 +40,7 @@
     "description": "Label under today's blocked count."
   },
   "popup_stat_total_blocked": {
-    "message": "סה\"כ נחסמו",
+    "message": "סה״כ נחסמו",
     "description": "Label under the all-time blocked count."
   },
   "popup_site_label": {
@@ -52,15 +48,15 @@
     "description": "Heading above the current tab's domain."
   },
   "popup_btn_block": {
-    "message": "🚫 חסום",
+    "message": "🚫 חסימה",
     "description": "Blocks the current site. Keep the leading emoji."
   },
   "popup_btn_allow": {
-    "message": "✅ אפשר",
+    "message": "✅ אפשור",
     "description": "Allows the current site. Keep the leading emoji."
   },
   "popup_section_focus_mode": {
-    "message": "⏱ מצב פוקוס",
+    "message": "⏱ מצב מיקוד",
     "description": "Focus mode section heading. Keep the leading emoji."
   },
   "popup_section_content_blocking": {
@@ -100,8 +96,8 @@
     "description": "TikTok in the social media switch list. Brand name: transliterate only if usual."
   },
   "popup_social_icon_youtube": {
-    "message": "◀️",
-    "description": "DIRECTIONAL GLYPH - FLIP FOR RTL. Play triangle next to the YouTube switch; use ◀️ in right-to-left locales."
+    "message": "▶️",
+    "description": "Play-button brand glyph next to the YouTube switch — not a directional control. Do not mirror for RTL."
   },
   "popup_social_youtube": {
     "message": "YouTube",
@@ -144,7 +140,7 @@
     "description": "Status bar text when the extension is off. Keep the leading sign."
   },
   "popup_status_focus": {
-    "message": "⏱ מצב פוקוס פעיל",
+    "message": "⏱ מצב מיקוד פעיל",
     "description": "Status bar text when focus mode is on. Keep the leading emoji."
   },
   "popup_status_active": {
@@ -152,11 +148,11 @@
     "description": "Status bar text when filtering is on. Keep the leading check mark."
   },
   "popup_focus_label_inactive": {
-    "message": "מצב פוקוס — חסימת כל המסיחים",
+    "message": "מצב מיקוד — חסימת כל הסחות הדעת",
     "description": "Focus mode button label while focus mode is off."
   },
   "popup_focus_label_active": {
-    "message": "מצב פוקוס פעיל — לחצו לכיבוי",
+    "message": "מצב מיקוד פעיל — לחיצה להשבתה",
     "description": "Focus mode button label while focus mode is on."
   },
   "popup_focus_desc_inactive": {
@@ -164,7 +160,7 @@
     "description": "Text under the focus mode button while it is off."
   },
   "popup_focus_desc_active": {
-    "message": "כל הרשתות החברתיות והמסיחים חסומים.",
+    "message": "כל הרשתות החברתיות והסחות הדעת חסומות.",
     "description": "Text under the focus mode button while it is on."
   },
   "blocked_page_title": {
@@ -172,7 +168,7 @@
     "description": "Document title of the blocked-site page."
   },
   "blocked_page_title_social": {
-    "message": "שמרו על פוקוס — K9 Web Protection",
+    "message": "שמירה על מיקוד — K9 Web Protection",
     "description": "Document title when a social network was blocked."
   },
   "blocked_title_default": {
@@ -180,11 +176,11 @@
     "description": "Headline of the blocked-site page."
   },
   "blocked_title_social": {
-    "message": "שמרו על פוקוס",
+    "message": "שמירה על מיקוד",
     "description": "Headline when a social network was blocked."
   },
   "blocked_title_keyword": {
-    "message": "מילת מפתח נחסמה",
+    "message": "האתר נחסם בשל מילת מפתח",
     "description": "Headline when the address matched a user keyword."
   },
   "blocked_message_default": {
@@ -192,7 +188,7 @@
     "description": "Body text of the blocked-site page."
   },
   "blocked_message_social": {
-    "message": "רשתות חברתיות חסומות. נצלו את הזמן הזה למשהו שבאמת חשוב.",
+    "message": "רשתות חברתיות חסומות. כדאי לנצל את הזמן הזה למשהו שבאמת חשוב.",
     "description": "Body text when a social network was blocked."
   },
   "blocked_message_keyword": {
@@ -204,15 +200,15 @@
     "description": "DIRECTIONAL GLYPH - FLIP FOR RTL. Returns to the previous page; use → in right-to-left locales."
   },
   "blocked_btn_allow": {
-    "message": "אפשר את האתר הזה",
+    "message": "אפשור האתר הזה",
     "description": "Permanently allows the blocked site."
   },
   "blocked_btn_adding": {
-    "message": "מוסיף…",
+    "message": "בהוספה…",
     "description": "Allow button label while the site is being added."
   },
   "blocked_btn_error": {
-    "message": "שגיאה — נסו שוב",
+    "message": "שגיאה — יש לנסות שוב",
     "description": "Allow button label after adding the site failed."
   },
   "blocked_footer": {
@@ -220,11 +216,11 @@
     "description": "Product name in the page footer. Keep the leading emoji."
   },
   "blocked_quote_1": {
-    "message": "האני העתידי שלכם יודה לכם על רגע המשמעת הזה.",
+    "message": "האני העתידי יודה על רגע המשמעת הזה.",
     "description": "Motivational quote 1 of 10 on the blocked page. Translate freely."
   },
   "blocked_quote_2": {
-    "message": "כל דקה שלא בגלילה היא דקה שמושקעת בכם.",
+    "message": "כל דקה שלא בגלילה היא דקה של השקעה עצמית.",
     "description": "Motivational quote 2 of 10 on the blocked page. Translate freely."
   },
   "blocked_quote_3": {
@@ -232,7 +228,7 @@
     "description": "Motivational quote 3 of 10 on the blocked page. Translate freely."
   },
   "blocked_quote_4": {
-    "message": "ככל שתגיבו פחות למסיחים, כך תזכו ליותר שלווה.",
+    "message": "ככל שמגיבים פחות למסיחים, כך זוכים ליותר שלווה.",
     "description": "Motivational quote 4 of 10 on the blocked page. Translate freely."
   },
   "blocked_quote_5": {
@@ -240,7 +236,7 @@
     "description": "Motivational quote 5 of 10 on the blocked page. Translate freely."
   },
   "blocked_quote_6": {
-    "message": "המטרות שלכם לא מתעניינות בפיד החדשות שלכם.",
+    "message": "המטרות האישיות לא מתעניינות בפיד החדשות.",
     "description": "Motivational quote 6 of 10 on the blocked page. Translate freely."
   },
   "blocked_quote_7": {
@@ -256,7 +252,7 @@
     "description": "Motivational quote 9 of 10 on the blocked page. Translate freely."
   },
   "blocked_quote_10": {
-    "message": "מה שתעשו היום יכול לשפר את כל המחר שלכם.",
+    "message": "מה שעושים היום יכול לשפר את כל המחר.",
     "description": "Motivational quote 10 of 10 on the blocked page. Translate freely."
   }
 }

@@ -24,6 +24,11 @@ let currentDomain = ''
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function el(id) { return document.getElementById(id) }
 
+// Escapes text before it's interpolated into an innerHTML template
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+}
+
 // Returns the SOCIAL_SITES_MAP key for a given hostname, or null
 function getSocialKey(host) {
   host = host.toLowerCase().replace(/^www\./, '')
@@ -72,8 +77,8 @@ function renderAllowlist(list) {
   section.innerHTML = list.map(domain =>
     `<div class="allowed-item">
        <span class="allowed-icon">✅</span>
-       <span class="allowed-domain">${domain}</span>
-       <button class="allowed-remove" data-domain="${domain}" data-i18n-title="popup_allowed_remove_title">×</button>
+       <span class="allowed-domain">${escapeHtml(domain)}</span>
+       <button class="allowed-remove" data-domain="${escapeHtml(domain)}" data-i18n-title="popup_allowed_remove_title">×</button>
      </div>`
   ).join('')
 

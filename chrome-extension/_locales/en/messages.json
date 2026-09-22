@@ -15,10 +15,6 @@
     "message": "K9 Web Protection",
     "description": "Tooltip of the toolbar button."
   },
-  "badge_off": {
-    "message": "OFF",
-    "description": "Toolbar badge when protection is off. Max 3 characters."
-  },
   "popup_page_title": {
     "message": "K9 Web Protection",
     "description": "Popup document title."
@@ -101,7 +97,7 @@
   },
   "popup_social_icon_youtube": {
     "message": "▶️",
-    "description": "DIRECTIONAL GLYPH - FLIP FOR RTL. Play triangle next to the YouTube switch; use ◀️ in right-to-left locales."
+    "description": "Play-button brand glyph next to the YouTube switch — not a directional control. Do not mirror for RTL."
   },
   "popup_social_youtube": {
     "message": "YouTube",

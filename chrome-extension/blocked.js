@@ -63,7 +63,9 @@ function applyReasonText() {
     document.title = k9t('blocked_page_title_social')
     k9i18n.setText(el('title'), 'blocked_title_social')
     k9i18n.setText(el('message'), 'blocked_message_social')
-    el('quote').textContent = '"' + k9t('blocked_quote_' + quoteIndex) + '"'
+    // He uses the gershayim mark (U+05F4); other locales fall back to the ASCII quote
+    const q = k9i18n.getLanguage() === 'he' ? '״' : '"'
+    el('quote').textContent = q + k9t('blocked_quote_' + quoteIndex) + q
   } else if (reason === 'keyword') {
     k9i18n.setText(el('title'), 'blocked_title_keyword')
     k9i18n.setText(el('message'), 'blocked_message_keyword')

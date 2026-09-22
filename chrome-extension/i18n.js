@@ -4,7 +4,7 @@
   'use strict'
 
   const STORAGE_KEY   = 'k9.lang'
-  const DEFAULT_LANG  = 'he'
+  const DEFAULT_LANG  = 'en' // last-resort fallback when no stored pref and browser UI language isn't supported
   const FALLBACK_LANG = 'en'
   const SUPPORTED     = ['en', 'he']            // must match the _locales folders
   const LANG_ALIASES  = { iw: 'he', in: 'id' }  // legacy codes Chrome may report
@@ -227,6 +227,10 @@
     applyDocumentLocale()
     apply()
     return activeLang || FALLBACK_LANG
+  }).then(function (lang) {
+    // Reveal the page now that data-i18n nodes hold their final text (success or fallback alike)
+    if (document.documentElement) document.documentElement.classList.add('k9i18n-ready')
+    return lang
   })
 
   window.k9t = getMessage

@@ -7,6 +7,8 @@ import (
 	_ "embed"
 
 	"github.com/energye/systray"
+
+	"k10webprotection/internal/i18n"
 )
 
 //go:embed icon.ico
@@ -16,12 +18,12 @@ var icon []byte // placeholder icon (bchs_favicon.ico) pending the real K10 logo
 func Run(ctx context.Context, onOpen func(), onExit func()) {
 	go systray.Run(func() {
 		systray.SetIcon(icon)
-		systray.SetTitle("K10 Web Protection")
-		systray.SetTooltip("K10 Web Protection")
+		systray.SetTitle(i18n.T("app.title"))
+		systray.SetTooltip(i18n.T("app.title"))
 
-		mOpen := systray.AddMenuItem("Open K10 Web Protection", "Open K10 Web Protection")
+		mOpen := systray.AddMenuItem(i18n.T("tray.open"), i18n.T("tray.open"))
 		systray.AddSeparator()
-		mExit := systray.AddMenuItem("Exit", "Exit K10 Web Protection")
+		mExit := systray.AddMenuItem(i18n.T("tray.exit"), i18n.T("tray.exit"))
 
 		mOpen.Click(onOpen)
 		mExit.Click(onExit)

@@ -99,16 +99,16 @@ var catalog = map[string]map[string]string{
 		"config.blockedMessageDefault": "This website has been blocked to help you stay focused and protected.",
 
 		// ── HTTPS/HTTP block page ─────────────────────────────────────────
-		"block.pageTitle":   "Blocked — K10 Web Protection",
-		"block.headerTitle": "K10 Web Protection Administration",
-		"block.chip":        "Access Blocked",
-		"block.heading":     "This website has been blocked",
-		"block.siteLabel":   "Site:",
-		"block.message": "This website has been blocked by K10 Web Protection because it may contain adult content, malware, phishing attempts, or other material that violates your configured filtering policy.",
+		"block.pageTitle":    "Blocked — K10 Web Protection",
+		"block.headerTitle":  "K10 Web Protection Administration",
+		"block.chip":         "Access Blocked",
+		"block.heading":      "This website has been blocked",
+		"block.siteLabel":    "Site:",
+		"block.message":      "This website has been blocked by K10 Web Protection because it may contain adult content, malware, phishing attempts, or other material that violates your configured filtering policy.",
 		"block.chipFiltered": "Filtered by K10 Web Protection",
 		"block.chipContact":  "Contact your administrator to request access",
 		// block.copyright is an HTML fragment by design — do not escape it.
-		"block.copyright":    "Copyright &copy; 2024&ndash;2026 K10WebProtection &mdash; All Rights Reserved.",
+		"block.copyright": "Copyright &copy; 2024&ndash;2026 K10WebProtection &mdash; All Rights Reserved.",
 
 		// -- macOS-only errors ---------------------------------------------
 		"err.invalidCertFormat":  "invalid certificate format",
@@ -151,16 +151,16 @@ var catalog = map[string]map[string]string{
 		"config.blockedMessageDefault": "האתר הזה נחסם כדי לשמור על הריכוז וההגנה שלך.",
 
 		// ── HTTPS/HTTP block page ─────────────────────────────────────────
-		"block.pageTitle":   "חסום — K10 Web Protection",
-		"block.headerTitle": "ניהול K10 Web Protection",
-		"block.chip":        "הגישה נחסמה",
-		"block.heading":     "האתר הזה נחסם",
-		"block.siteLabel":   "אתר:",
-		"block.message": "האתר הזה נחסם על ידי K10 Web Protection מכיוון שהוא עשוי להכיל תוכן למבוגרים בלבד, תוכנה זדונית, ניסיונות התחזות, או חומר אחר שמפר את מדיניות הסינון שהוגדרה אצלך.",
+		"block.pageTitle":    "חסום — K10 Web Protection",
+		"block.headerTitle":  "ניהול K10 Web Protection",
+		"block.chip":         "הגישה נחסמה",
+		"block.heading":      "האתר הזה נחסם",
+		"block.siteLabel":    "אתר:",
+		"block.message":      "האתר הזה נחסם על ידי K10 Web Protection מכיוון שהוא עשוי להכיל תוכן למבוגרים בלבד, תוכנה זדונית, ניסיונות התחזות, או חומר אחר שמפר את מדיניות הסינון שהוגדרה אצלך.",
 		"block.chipFiltered": "מסונן על ידי K10 Web Protection",
 		"block.chipContact":  "יש לפנות למנהל המערכת כדי לבקש גישה",
 		// block.copyright is an HTML fragment by design — do not escape it.
-		"block.copyright":    "&copy; 2024&ndash;2026 K10WebProtection &mdash; כל הזכויות שמורות.",
+		"block.copyright": "&copy; 2024&ndash;2026 K10WebProtection &mdash; כל הזכויות שמורות.",
 
 		// -- macOS-only errors ---------------------------------------------
 		"err.invalidCertFormat":  "פורמט התעודה אינו תקין",

@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" dir="ltr">
 <head>
   <meta charset="UTF-8" />
-  <title>K9 Web Protection</title>
+  <title data-i18n="popup_page_title"></title>
   <link rel="stylesheet" href="popup.css" />
+  <script src="i18n.js"></script>
 </head>
 <body>
 
@@ -12,11 +13,11 @@
     <div class="brand">
       <span class="brand-icon">🛡️</span>
       <div>
-        <div class="brand-name">K9 Web Protection</div>
-        <div class="brand-sub">Adult Content Blocker</div>
+        <div class="brand-name" data-i18n="popup_brand_name"></div>
+        <div class="brand-sub" data-i18n="popup_brand_sub"></div>
       </div>
     </div>
-    <label class="toggle" title="Enable / Disable">
+    <label class="toggle" data-i18n-title="popup_toggle_enabled_title">
       <input type="checkbox" id="toggle-enabled" />
       <span class="slider"></span>
     </label>
@@ -24,49 +25,47 @@
 
   <!-- Status -->
   <div class="status-bar" id="status-bar">
-    <span id="status-label">Loading…</span>
+    <span id="status-label" data-i18n="popup_status_loading"></span>
   </div>
 
   <!-- Stats -->
   <div class="stats">
     <div class="stat">
       <div class="stat-value" id="stat-today">—</div>
-      <div class="stat-label">Blocked today</div>
+      <div class="stat-label" data-i18n="popup_stat_blocked_today"></div>
     </div>
     <div class="stat-divider"></div>
     <div class="stat">
       <div class="stat-value" id="stat-total">—</div>
-      <div class="stat-label">Total blocked</div>
+      <div class="stat-label" data-i18n="popup_stat_total_blocked"></div>
     </div>
   </div>
 
   <!-- Current site -->
   <div class="site-section">
-    <div class="site-label">Current site</div>
+    <div class="site-label" data-i18n="popup_site_label"></div>
     <div class="site-domain" id="current-domain">—</div>
     <div class="site-actions">
-      <button class="btn btn-block" id="btn-block">🚫 Block</button>
-      <button class="btn btn-allow" id="btn-allow">✅ Allow</button>
+      <button class="btn btn-block" id="btn-block" data-i18n="popup_btn_block"></button>
+      <button class="btn btn-allow" id="btn-allow" data-i18n="popup_btn_allow"></button>
     </div>
   </div>
 
   <!-- ── FOCUS MODE ──────────────────────────────────────────────────────── -->
-  <div class="section-hdr">⏱ FOCUS MODE</div>
+  <div class="section-hdr" data-i18n="popup_section_focus_mode"></div>
   <div class="focus-section">
     <button class="focus-btn" id="focus-btn">
       <span id="focus-icon">⏱</span>
-      <span id="focus-label">Focus Mode — Block All Distractions</span>
+      <span id="focus-label" data-i18n="popup_focus_label_inactive"></span>
     </button>
-    <div class="focus-desc" id="focus-desc">
-      Instantly blocks social media and adult content.
-    </div>
+    <div class="focus-desc" id="focus-desc" data-i18n="popup_focus_desc_inactive"></div>
   </div>
 
   <!-- ── CONTENT BLOCKING ───────────────────────────────────────────────── -->
-  <div class="section-hdr">🌐 CONTENT BLOCKING</div>
+  <div class="section-hdr" data-i18n="popup_section_content_blocking"></div>
   <div class="toggles-section">
     <div class="toggle-row">
-      <span>Block adult content</span>
+      <span data-i18n="popup_toggle_adult"></span>
       <label class="mini-toggle">
         <input type="checkbox" id="toggle-adult" />
         <span class="slider"></span>
@@ -75,66 +74,66 @@
   </div>
 
   <!-- ── SOCIAL MEDIA ───────────────────────────────────────────────────── -->
-  <div class="section-hdr">📱 SOCIAL MEDIA</div>
+  <div class="section-hdr" data-i18n="popup_section_social_media"></div>
   <div class="toggles-section">
     <div class="toggle-row">
-      <span><span class="site-icon">📘</span> Facebook</span>
+      <span><span class="site-icon">📘</span> <span data-i18n="popup_social_facebook"></span></span>
       <label class="mini-toggle">
         <input type="checkbox" id="toggle-facebook" data-social="facebook" />
         <span class="slider"></span>
       </label>
     </div>
     <div class="toggle-row">
-      <span><span class="site-icon">📸</span> Instagram</span>
+      <span><span class="site-icon">📸</span> <span data-i18n="popup_social_instagram"></span></span>
       <label class="mini-toggle">
         <input type="checkbox" id="toggle-instagram" data-social="instagram" />
         <span class="slider"></span>
       </label>
     </div>
     <div class="toggle-row">
-      <span><span class="site-icon">𝕏</span> Twitter / X</span>
+      <span><span class="site-icon">𝕏</span> <span data-i18n="popup_social_twitter"></span></span>
       <label class="mini-toggle">
         <input type="checkbox" id="toggle-twitter" data-social="twitter" />
         <span class="slider"></span>
       </label>
     </div>
     <div class="toggle-row">
-      <span><span class="site-icon">🤖</span> Reddit</span>
+      <span><span class="site-icon">🤖</span> <span data-i18n="popup_social_reddit"></span></span>
       <label class="mini-toggle">
         <input type="checkbox" id="toggle-reddit" data-social="reddit" />
         <span class="slider"></span>
       </label>
     </div>
     <div class="toggle-row">
-      <span><span class="site-icon">🎵</span> TikTok</span>
+      <span><span class="site-icon">🎵</span> <span data-i18n="popup_social_tiktok"></span></span>
       <label class="mini-toggle">
         <input type="checkbox" id="toggle-tiktok" data-social="tiktok" />
         <span class="slider"></span>
       </label>
     </div>
     <div class="toggle-row">
-      <span><span class="site-icon">▶️</span> YouTube</span>
+      <span><span class="site-icon" data-i18n="popup_social_icon_youtube"></span> <span data-i18n="popup_social_youtube"></span></span>
       <label class="mini-toggle">
         <input type="checkbox" id="toggle-youtube-social" data-social="youtube" />
         <span class="slider"></span>
       </label>
     </div>
     <div class="toggle-row">
-      <span><span class="site-icon">👻</span> Snapchat</span>
+      <span><span class="site-icon">👻</span> <span data-i18n="popup_social_snapchat"></span></span>
       <label class="mini-toggle">
         <input type="checkbox" id="toggle-snapchat" data-social="snapchat" />
         <span class="slider"></span>
       </label>
     </div>
     <div class="toggle-row">
-      <span><span class="site-icon">📌</span> Pinterest</span>
+      <span><span class="site-icon">📌</span> <span data-i18n="popup_social_pinterest"></span></span>
       <label class="mini-toggle">
         <input type="checkbox" id="toggle-pinterest" data-social="pinterest" />
         <span class="slider"></span>
       </label>
     </div>
     <div class="toggle-row">
-      <span><span class="site-icon">💼</span> LinkedIn</span>
+      <span><span class="site-icon">💼</span> <span data-i18n="popup_social_linkedin"></span></span>
       <label class="mini-toggle">
         <input type="checkbox" id="toggle-linkedin" data-social="linkedin" />
         <span class="slider"></span>
@@ -143,13 +142,18 @@
   </div>
 
   <!-- ── ALLOWED SITES ─────────────────────────────────────────────── -->
-  <div class="section-hdr" id="allowed-hdr" style="display:none">✅ ALLOWED SITES</div>
+  <div class="section-hdr" id="allowed-hdr" style="display:none" data-i18n="popup_section_allowed_sites"></div>
   <div class="allowed-section" id="allowed-section" style="display:none"></div>
 
   <!-- Footer -->
   <div class="footer-actions">
     <a class="btn-text" href="https://k9.khaleel.eu" target="_blank">🌐 k9.khaleel.eu</a>
-    <span class="btn-text" style="opacity:0.4">v2.1</span>
+    <select class="btn-text" id="lang-select"
+            data-i18n-title="popup_lang_label" data-i18n-aria-label="popup_lang_label">
+      <option value="he" data-i18n="popup_lang_he"></option>
+      <option value="en" data-i18n="popup_lang_en"></option>
+    </select>
+    <span class="btn-text ltr-text" style="opacity:0.4">v2.1</span>
   </div>
 
   <script src="popup.js"></script>

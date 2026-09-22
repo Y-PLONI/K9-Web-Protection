@@ -1,0 +1,258 @@
+{
+  "manifest_name": {
+    "message": "K9 Web Protection — חוסם תוכן פורנוגרפי ותוכן למבוגרים",
+    "description": "Extension name in the Chrome Web Store and extensions page."
+  },
+  "manifest_short_name": {
+    "message": "K9 Protection",
+    "description": "Short extension name, used where space is limited."
+  },
+  "manifest_description": {
+    "message": "חוסם תוכן פורנוגרפי, תוכן למבוגרים ורשתות חברתיות. מצב פוקוס לתלמידים. מסנן בקרת הורים חינמי ל-Chrome.",
+    "description": "Extension description in the Chrome Web Store."
+  },
+  "manifest_action_title": {
+    "message": "K9 Web Protection",
+    "description": "Tooltip of the toolbar button."
+  },
+  "popup_page_title": {
+    "message": "K9 Web Protection",
+    "description": "Popup document title."
+  },
+  "popup_brand_name": {
+    "message": "K9 Web Protection",
+    "description": "Product name in the popup header."
+  },
+  "popup_brand_sub": {
+    "message": "חסימת תוכן למבוגרים",
+    "description": "Tagline under the product name in the popup header."
+  },
+  "popup_toggle_enabled_title": {
+    "message": "הפעלה / השבתה",
+    "description": "Tooltip of the master on/off switch."
+  },
+  "popup_status_loading": {
+    "message": "בטעינה…",
+    "description": "Status bar text while the popup loads."
+  },
+  "popup_stat_blocked_today": {
+    "message": "נחסמו היום",
+    "description": "Label under today's blocked count."
+  },
+  "popup_stat_total_blocked": {
+    "message": "סה״כ נחסמו",
+    "description": "Label under the all-time blocked count."
+  },
+  "popup_site_label": {
+    "message": "האתר הנוכחי",
+    "description": "Heading above the current tab's domain."
+  },
+  "popup_btn_block": {
+    "message": "🚫 חסימה",
+    "description": "Blocks the current site. Keep the leading emoji."
+  },
+  "popup_btn_allow": {
+    "message": "✅ אפשור",
+    "description": "Allows the current site. Keep the leading emoji."
+  },
+  "popup_section_focus_mode": {
+    "message": "⏱ מצב מיקוד",
+    "description": "Focus mode section heading. Keep the leading emoji."
+  },
+  "popup_section_content_blocking": {
+    "message": "🌐 חסימת תוכן",
+    "description": "Content blocking section heading. Keep the leading emoji."
+  },
+  "popup_section_social_media": {
+    "message": "📱 רשתות חברתיות",
+    "description": "Social media section heading. Keep the leading emoji."
+  },
+  "popup_section_allowed_sites": {
+    "message": "✅ אתרים מורשים",
+    "description": "Allowed sites section heading. Keep the leading emoji."
+  },
+  "popup_toggle_adult": {
+    "message": "חסימת תוכן למבוגרים",
+    "description": "Label of the main content filter switch."
+  },
+  "popup_social_facebook": {
+    "message": "Facebook",
+    "description": "Facebook in the social media switch list. Brand name: transliterate only if usual."
+  },
+  "popup_social_instagram": {
+    "message": "Instagram",
+    "description": "Instagram in the social media switch list. Brand name: transliterate only if usual."
+  },
+  "popup_social_twitter": {
+    "message": "Twitter / X",
+    "description": "Twitter / X in the social media switch list. Brand name: transliterate only if usual."
+  },
+  "popup_social_reddit": {
+    "message": "Reddit",
+    "description": "Reddit in the social media switch list. Brand name: transliterate only if usual."
+  },
+  "popup_social_tiktok": {
+    "message": "TikTok",
+    "description": "TikTok in the social media switch list. Brand name: transliterate only if usual."
+  },
+  "popup_social_icon_youtube": {
+    "message": "▶️",
+    "description": "Play-button brand glyph next to the YouTube switch — not a directional control. Do not mirror for RTL."
+  },
+  "popup_social_youtube": {
+    "message": "YouTube",
+    "description": "YouTube in the social media switch list. Brand name: transliterate only if usual."
+  },
+  "popup_social_snapchat": {
+    "message": "Snapchat",
+    "description": "Snapchat in the social media switch list. Brand name: transliterate only if usual."
+  },
+  "popup_social_pinterest": {
+    "message": "Pinterest",
+    "description": "Pinterest in the social media switch list. Brand name: transliterate only if usual."
+  },
+  "popup_social_linkedin": {
+    "message": "LinkedIn",
+    "description": "LinkedIn in the social media switch list. Brand name: transliterate only if usual."
+  },
+  "popup_lang_label": {
+    "message": "שפה",
+    "description": "Tooltip and accessible name of the language selector."
+  },
+  "popup_lang_en": {
+    "message": "English",
+    "description": "English option in the language selector. Autonym: keep as \"English\"."
+  },
+  "popup_lang_he": {
+    "message": "עברית",
+    "description": "Hebrew option in the language selector. Autonym: use the language's own name."
+  },
+  "popup_not_a_webpage": {
+    "message": "לא דף אינטרנט",
+    "description": "Shown instead of a domain when the tab is not a web page."
+  },
+  "popup_allowed_remove_title": {
+    "message": "הסרה",
+    "description": "Tooltip of the button removing an allowed site."
+  },
+  "popup_status_disabled": {
+    "message": "⚠ ההגנה מושבתת",
+    "description": "Status bar text when the extension is off. Keep the leading sign."
+  },
+  "popup_status_focus": {
+    "message": "⏱ מצב מיקוד פעיל",
+    "description": "Status bar text when focus mode is on. Keep the leading emoji."
+  },
+  "popup_status_active": {
+    "message": "✓ ההגנה פעילה",
+    "description": "Status bar text when filtering is on. Keep the leading check mark."
+  },
+  "popup_focus_label_inactive": {
+    "message": "מצב מיקוד — חסימת כל הסחות הדעת",
+    "description": "Focus mode button label while focus mode is off."
+  },
+  "popup_focus_label_active": {
+    "message": "מצב מיקוד פעיל — לחיצה להשבתה",
+    "description": "Focus mode button label while focus mode is on."
+  },
+  "popup_focus_desc_inactive": {
+    "message": "חוסם מיידית רשתות חברתיות ותוכן למבוגרים.",
+    "description": "Text under the focus mode button while it is off."
+  },
+  "popup_focus_desc_active": {
+    "message": "כל הרשתות החברתיות והסחות הדעת חסומות.",
+    "description": "Text under the focus mode button while it is on."
+  },
+  "blocked_page_title": {
+    "message": "חסום — K9 Web Protection",
+    "description": "Document title of the blocked-site page."
+  },
+  "blocked_page_title_social": {
+    "message": "שמירה על מיקוד — K9 Web Protection",
+    "description": "Document title when a social network was blocked."
+  },
+  "blocked_title_default": {
+    "message": "האתר נחסם",
+    "description": "Headline of the blocked-site page."
+  },
+  "blocked_title_social": {
+    "message": "שמירה על מיקוד",
+    "description": "Headline when a social network was blocked."
+  },
+  "blocked_title_keyword": {
+    "message": "האתר נחסם בשל מילת מפתח",
+    "description": "Headline when the address matched a user keyword."
+  },
+  "blocked_message_default": {
+    "message": "אתר זה נחסם על ידי K9 Web Protection.",
+    "description": "Body text of the blocked-site page."
+  },
+  "blocked_message_social": {
+    "message": "רשתות חברתיות חסומות. כדאי לנצל את הזמן הזה למשהו שבאמת חשוב.",
+    "description": "Body text when a social network was blocked."
+  },
+  "blocked_message_keyword": {
+    "message": "הכתובת הזו תואמת מילת מפתח חסומה.",
+    "description": "Body text when the address matched a user keyword."
+  },
+  "blocked_btn_back": {
+    "message": "→ חזרה",
+    "description": "DIRECTIONAL GLYPH - FLIP FOR RTL. Returns to the previous page; use → in right-to-left locales."
+  },
+  "blocked_btn_allow": {
+    "message": "אפשור האתר הזה",
+    "description": "Permanently allows the blocked site."
+  },
+  "blocked_btn_adding": {
+    "message": "בהוספה…",
+    "description": "Allow button label while the site is being added."
+  },
+  "blocked_btn_error": {
+    "message": "שגיאה — יש לנסות שוב",
+    "description": "Allow button label after adding the site failed."
+  },
+  "blocked_footer": {
+    "message": "🛡️ K9 Web Protection",
+    "description": "Product name in the page footer. Keep the leading emoji."
+  },
+  "blocked_quote_1": {
+    "message": "האני העתידי יודה על רגע המשמעת הזה.",
+    "description": "Motivational quote 1 of 10 on the blocked page. Translate freely."
+  },
+  "blocked_quote_2": {
+    "message": "כל דקה שלא בגלילה היא דקה של השקעה עצמית.",
+    "description": "Motivational quote 2 of 10 on the blocked page. Translate freely."
+  },
+  "blocked_quote_3": {
+    "message": "אלופים נוצרים ברגעים שבהם רוצים לוותר — ולא מוותרים.",
+    "description": "Motivational quote 3 of 10 on the blocked page. Translate freely."
+  },
+  "blocked_quote_4": {
+    "message": "ככל שמגיבים פחות למסיחים, כך זוכים ליותר שלווה.",
+    "description": "Motivational quote 4 of 10 on the blocked page. Translate freely."
+  },
+  "blocked_quote_5": {
+    "message": "משמעת קטנה שחוזרת על עצמה כל יום מובילה להישגים גדולים.",
+    "description": "Motivational quote 5 of 10 on the blocked page. Translate freely."
+  },
+  "blocked_quote_6": {
+    "message": "המטרות האישיות לא מתעניינות בפיד החדשות.",
+    "description": "Motivational quote 6 of 10 on the blocked page. Translate freely."
+  },
+  "blocked_quote_7": {
+    "message": "משמעת היא הבחירה בין מה שרוצים עכשיו לבין מה שרוצים הכי הרבה.",
+    "description": "Motivational quote 7 of 10 on the blocked page. Translate freely."
+  },
+  "blocked_quote_8": {
+    "message": "פוקוס הוא כוח העל של המאה ה-21.",
+    "description": "Motivational quote 8 of 10 on the blocked page. Translate freely."
+  },
+  "blocked_quote_9": {
+    "message": "הלוחם המצליח הוא אדם רגיל עם פוקוס חד כמו לייזר.",
+    "description": "Motivational quote 9 of 10 on the blocked page. Translate freely."
+  },
+  "blocked_quote_10": {
+    "message": "מה שעושים היום יכול לשפר את כל המחר.",
+    "description": "Motivational quote 10 of 10 on the blocked page. Translate freely."
+  }
+}

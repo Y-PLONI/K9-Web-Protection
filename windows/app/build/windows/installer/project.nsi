@@ -37,7 +37,7 @@ Unicode True
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !define MUI_FINISHPAGE_RUN          "$INSTDIR\K10WebProtection.exe"
-!define MUI_FINISHPAGE_RUN_TEXT     "Launch K10 Web Protection"
+!define MUI_FINISHPAGE_RUN_TEXT     "$(K10_FINISH_RUN)"
 !define MUI_FINISHPAGE_SHOWREADME   ""
 !insertmacro MUI_PAGE_FINISH
 
@@ -47,6 +47,30 @@ Unicode True
 !insertmacro MUI_UNPAGE_FINISH
 
 !insertmacro MUI_LANGUAGE "English"
+; Hebrew MUI is RTL; NSIS picks by Windows locale and falls back to English.
+!insertmacro MUI_LANGUAGE "Hebrew"
+
+; -- Localised installer strings -----------------------------------------------
+; TRANSLATOR: only the ${LANG_HEBREW} values below need translating.
+LangString K10_FINISH_RUN      ${LANG_ENGLISH} "Launch K10 Web Protection"
+LangString K10_MSG_STOPPING    ${LANG_ENGLISH} "Stopping existing instance..."
+LangString K10_MSG_COPYING     ${LANG_ENGLISH} "Copying files..."
+LangString K10_MSG_SHORTCUTS   ${LANG_ENGLISH} "Creating shortcuts..."
+LangString K10_MSG_SYSINT      ${LANG_ENGLISH} "Configuring system integration..."
+LangString K10_MSG_SYSINT_WARN ${LANG_ENGLISH} "Warning: system integration step returned $0"
+LangString K10_MSG_WATCHDOG    ${LANG_ENGLISH} "Starting watchdog..."
+LangString K10_MSG_UN_CLEANUP  ${LANG_ENGLISH} "Cleaning up system integration..."
+LangString K10_MSG_UN_REMOVING ${LANG_ENGLISH} "Removing files..."
+
+LangString K10_FINISH_RUN      ${LANG_HEBREW} "הפעלת K10 Web Protection"
+LangString K10_MSG_STOPPING    ${LANG_HEBREW} "עצירת מופע קיים..."
+LangString K10_MSG_COPYING     ${LANG_HEBREW} "העתקת קבצים..."
+LangString K10_MSG_SHORTCUTS   ${LANG_HEBREW} "יצירת קיצורי דרך..."
+LangString K10_MSG_SYSINT      ${LANG_HEBREW} "הגדרת שילוב מערכת..."
+LangString K10_MSG_SYSINT_WARN ${LANG_HEBREW} "אזהרה: שלב שילוב המערכת החזיר $0"
+LangString K10_MSG_WATCHDOG    ${LANG_HEBREW} "הפעלת ה-watchdog..."
+LangString K10_MSG_UN_CLEANUP  ${LANG_HEBREW} "ניקוי שילוב מערכת..."
+LangString K10_MSG_UN_REMOVING ${LANG_HEBREW} "הסרת קבצים..."
 
 ; ── Version info embedded in the .exe ─────────────────────────────────────────
 VIProductVersion "${VERSION}.0"
@@ -65,7 +89,7 @@ Section "K10 Web Protection" SecMain
     SetOverwrite on
 
     ; Kill any running instance before overwriting the exe
-    DetailPrint "Stopping existing instance..."
+    DetailPrint "$(K10_MSG_STOPPING)"
     nsExec::Exec 'taskkill /F /IM K10WebProtection.exe'
     Sleep 800
 
@@ -74,7 +98,7 @@ Section "K10 Web Protection" SecMain
     nsExec::Exec 'icacls "$INSTDIR\k10_watchdog.ps1"    /remove:d Everyone'
 
     ; ── Copy main files ────────────────────────────────────────────────────────
-    DetailPrint "Copying files..."
+    DetailPrint "$(K10_MSG_COPYING)"
     File "..\..\bin\K10WebProtection.exe"
     File "..\..\bin\k10_watchdog.ps1"
     File "setup-system.ps1"
@@ -104,7 +128,7 @@ Section "K10 Web Protection" SecMain
         "NoRepair"        1
 
     ; ── Shortcuts ─────────────────────────────────────────────────────────────
-    DetailPrint "Creating shortcuts..."
+    DetailPrint "$(K10_MSG_SHORTCUTS)"
     CreateDirectory "$SMPROGRAMS\K10 Web Protection"
     CreateShortcut  "$SMPROGRAMS\K10 Web Protection\K10 Web Protection.lnk" \
         "$INSTDIR\K10WebProtection.exe" "" "$INSTDIR\K10WebProtection.exe" 0
@@ -114,19 +138,19 @@ Section "K10 Web Protection" SecMain
         "$INSTDIR\K10WebProtection.exe" "" "$INSTDIR\K10WebProtection.exe" 0
 
     ; ── System integration (Task Scheduler, Firewall, file locking) ───────────
-    DetailPrint "Configuring system integration..."
+    DetailPrint "$(K10_MSG_SYSINT)"
     nsExec::ExecToLog 'powershell.exe -NonInteractive -NoProfile -ExecutionPolicy Bypass \
         -File "$INSTDIR\setup-system.ps1" "$INSTDIR"'
     Pop $0
     ${If} $0 != 0
-        DetailPrint "Warning: system integration step returned $0"
+        DetailPrint "$(K10_MSG_SYSINT_WARN)"
     ${EndIf}
 
     ; setup-system.ps1 is a one-shot script — remove after running
     Delete "$INSTDIR\setup-system.ps1"
 
     ; ── Start watchdog ────────────────────────────────────────────────────────
-    DetailPrint "Starting watchdog..."
+    DetailPrint "$(K10_MSG_WATCHDOG)"
     nsExec::Exec 'schtasks /run /tn "K10WebProtection-Watchdog"'
 
 SectionEnd
@@ -135,12 +159,12 @@ SectionEnd
 Section "Uninstall"
 
     ; ── System cleanup (must run before files are removed) ────────────────────
-    DetailPrint "Cleaning up system integration..."
+    DetailPrint "$(K10_MSG_UN_CLEANUP)"
     nsExec::ExecToLog 'powershell.exe -NonInteractive -NoProfile -ExecutionPolicy Bypass \
         -File "$INSTDIR\teardown-system.ps1"'
 
     ; ── Remove files ──────────────────────────────────────────────────────────
-    DetailPrint "Removing files..."
+    DetailPrint "$(K10_MSG_UN_REMOVING)"
     Delete "$INSTDIR\K10WebProtection.exe"
     Delete "$INSTDIR\k10_watchdog.ps1"
     Delete "$INSTDIR\teardown-system.ps1"

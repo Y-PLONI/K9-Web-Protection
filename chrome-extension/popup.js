@@ -24,6 +24,11 @@ let currentDomain = ''
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function el(id) { return document.getElementById(id) }
 
+// Escapes text before it's interpolated into an innerHTML template
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+}
+
 // Returns the SOCIAL_SITES_MAP key for a given hostname, or null
 function getSocialKey(host) {
   host = host.toLowerCase().replace(/^www\./, '')
@@ -72,10 +77,12 @@ function renderAllowlist(list) {
   section.innerHTML = list.map(domain =>
     `<div class="allowed-item">
        <span class="allowed-icon">✅</span>
-       <span class="allowed-domain">${domain}</span>
-       <button class="allowed-remove" data-domain="${domain}" title="Remove">×</button>
+       <span class="allowed-domain">${escapeHtml(domain)}</span>
+       <button class="allowed-remove" data-domain="${escapeHtml(domain)}" data-i18n-title="popup_allowed_remove_title">×</button>
      </div>`
   ).join('')
+
+  k9i18n.apply(section)
 
   section.querySelectorAll('.allowed-remove').forEach(btn => {
     btn.addEventListener('click', () => removeAllowed(btn.dataset.domain))
@@ -95,6 +102,7 @@ async function removeAllowed(domain) {
 
 // ── Load ──────────────────────────────────────────────────────────────────────
 async function load() {
+  await k9i18n.ready
   settings = await ask('GET_SETTINGS') || {}
   const { stats = {}, blockSocial = {}, focusMode } = settings
 
@@ -118,11 +126,12 @@ async function load() {
   if (tab?.url) {
     try {
       currentDomain = new URL(tab.url).hostname
+      k9i18n.clearText(el('current-domain'))
       el('current-domain').textContent = currentDomain
       el('btn-block').classList.toggle('active', (settings.userBlocklist || []).includes(currentDomain))
       el('btn-allow').classList.toggle('active', (settings.userAllowlist || []).includes(currentDomain))
     } catch (_) {
-      el('current-domain').textContent = 'Not a webpage'
+      k9i18n.setText(el('current-domain'), 'popup_not_a_webpage')
     }
   }
 }
@@ -132,9 +141,9 @@ function updateStatusBar(on, focus) {
   const bar = el('status-bar')
   const lbl = el('status-label')
   bar.className = 'status-bar'
-  if (!on)   { bar.classList.add('off');   lbl.textContent = '⚠ Protection Disabled'; return }
-  if (focus) { bar.classList.add('focus'); lbl.textContent = '⏱ Focus Mode Active';   return }
-  lbl.textContent = '✓ Protection Active'
+  if (!on)   { bar.classList.add('off');   k9i18n.setText(lbl, 'popup_status_disabled'); return }
+  if (focus) { bar.classList.add('focus'); k9i18n.setText(lbl, 'popup_status_focus');    return }
+  k9i18n.setText(lbl, 'popup_status_active')
 }
 
 // ── Focus Mode ────────────────────────────────────────────────────────────────
@@ -145,12 +154,8 @@ function updateFocusBtn(active) {
   const desc = el('focus-desc')
   btn.classList.toggle('active', !!active)
   icon.textContent = active ? '🔴' : '⏱'
-  lbl.textContent  = active
-    ? 'Focus Mode Active — Click to disable'
-    : 'Focus Mode — Block All Distractions'
-  desc.textContent = active
-    ? 'All social media and distractions are blocked.'
-    : 'Instantly blocks social media and adult content.'
+  k9i18n.setText(lbl,  active ? 'popup_focus_label_active' : 'popup_focus_label_inactive')
+  k9i18n.setText(desc, active ? 'popup_focus_desc_active'  : 'popup_focus_desc_inactive')
 }
 
 async function toggleFocusMode() {
@@ -197,6 +202,18 @@ function allowCurrent() {
   renderAllowlist(userAllowlist)
 }
 
+// ── Language selector ─────────────────────────────────────────────────────────
+async function initLangSelect() {
+  const select = el('lang-select')
+  if (!select) return
+  await k9i18n.ready
+  select.value = k9i18n.getLanguage()
+  select.addEventListener('change', async (e) => {
+    await k9i18n.setLanguage(e.target.value)
+    select.value = k9i18n.getLanguage()
+  })
+}
+
 // ── Event listeners ───────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   el('btn-block').addEventListener('click', blockCurrent)
@@ -236,5 +253,6 @@ document.addEventListener('DOMContentLoaded', () => {
     })
   })
 
+  initLangSelect().catch(e => console.error('K9 popup language init error:', e))
   load().catch(e => console.error('K9 popup init error:', e))
 })

@@ -1,9 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "K9 Web Protection — Porn & Adult Content Blocker",
-  "short_name": "K9 Protection",
+  "name": "__MSG_manifest_name__",
+  "short_name": "__MSG_manifest_short_name__",
   "version": "2.2.0",
-  "description": "Block porn, adult content & social media. Focus Mode for students. Free parental control filter for Chrome.",
+  "default_locale": "en",
+  "description": "__MSG_manifest_description__",
 
   "permissions": [
     "storage",
@@ -21,7 +22,7 @@
 
   "action": {
     "default_popup": "popup.html",
-    "default_title": "K9 Web Protection",
+    "default_title": "__MSG_manifest_action_title__",
     "default_icon": {
       "16":  "icons/icon16.png",
       "32":  "icons/icon32.png",
@@ -51,7 +52,7 @@
 
   "web_accessible_resources": [
     {
-      "resources": ["blocked.html", "blocked.css", "blocked.js", "icons/*.png"],
+      "resources": ["blocked.html"],
       "matches": ["<all_urls>"]
     }
   ],

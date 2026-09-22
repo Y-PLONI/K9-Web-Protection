@@ -1,24 +1,25 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" dir="ltr">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Blocked — K9 Web Protection</title>
+  <title data-i18n="blocked_page_title"></title>
   <link rel="stylesheet" href="blocked.css" />
+  <script src="i18n.js"></script>
 </head>
 <body>
   <div class="card">
     <div class="icon"  id="icon">🛡️</div>
-    <h1 id="title">Site Blocked</h1>
+    <h1 id="title" data-i18n="blocked_title_default"></h1>
     <p  id="message"></p>
     <div class="domain" id="domain"></div>
     <div class="quote"  id="quote"></div>
     <div class="actions">
-      <button class="btn btn-back"  id="btn-back">← Go Back</button>
-      <button class="btn btn-allow" id="btn-allow">Allow this site</button>
+      <button class="btn btn-back"  id="btn-back" data-i18n="blocked_btn_back"></button>
+      <button class="btn btn-allow" id="btn-allow" data-i18n="blocked_btn_allow"></button>
     </div>
     <div class="footer">
-      🛡️ K9 Web Protection &nbsp;·&nbsp;
+      <span data-i18n="blocked_footer"></span> &nbsp;·&nbsp;
       <a href="https://k9.khaleel.eu" target="_blank">k9.khaleel.eu</a>
     </div>
   </div>

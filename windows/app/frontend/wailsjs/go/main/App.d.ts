@@ -3,13 +3,13 @@
 import {main} from '../models';
 import {config} from '../models';
 
+export function AddAllowRule(arg1:string,arg2:string,arg3:boolean):Promise<main.RulesView>;
+
+export function AddBlockRule(arg1:string,arg2:boolean):Promise<main.RulesView>;
+
 export function AddFocusSite(arg1:string):Promise<void>;
 
 export function AddKeyword(arg1:string):Promise<void>;
-
-export function AddToAllowlist(arg1:string):Promise<void>;
-
-export function AddToBlocklist(arg1:string):Promise<void>;
 
 export function CACertPath():Promise<string>;
 
@@ -23,10 +23,6 @@ export function EnableProtection():Promise<void>;
 
 export function GetAdvancedSettings():Promise<main.AdvancedSettings>;
 
-export function GetAllowlist():Promise<Array<string>>;
-
-export function GetBlocklist():Promise<main.BlocklistData>;
-
 export function GetContentSettings():Promise<main.ContentSettings>;
 
 export function GetDisableDelayStatus():Promise<main.DisableDelayStatus>;
@@ -37,7 +33,13 @@ export function GetFocusSites():Promise<Array<config.FocusSite>>;
 
 export function GetKeywords():Promise<main.KeywordsData>;
 
+export function GetLanguage():Promise<string>;
+
+export function GetLevelCategories():Promise<Record<string, Array<string>>>;
+
 export function GetProxySettings():Promise<main.ProxySettings>;
+
+export function GetRules():Promise<main.RulesView>;
 
 export function GetStatus():Promise<main.Status>;
 
@@ -47,15 +49,19 @@ export function HasPassword():Promise<boolean>;
 
 export function InstallCACert():Promise<void>;
 
+export function ReloadSettings():Promise<main.DiagnosticsView>;
+
+export function RemoveAllowRule(arg1:string):Promise<main.RulesView>;
+
+export function RemoveBlockRule(arg1:string,arg2:string):Promise<main.RulesView>;
+
 export function RemoveFocusSite(arg1:string):Promise<void>;
-
-export function RemoveFromAllowlist(arg1:string):Promise<void>;
-
-export function RemoveFromBlocklist(arg1:string):Promise<void>;
 
 export function RemoveKeyword(arg1:string):Promise<void>;
 
 export function RequestDisable():Promise<void>;
+
+export function RetryHosts():Promise<main.ApplyView>;
 
 export function SaveAdvancedSettings(arg1:string,arg2:main.AdvancedSettings):Promise<void>;
 
@@ -69,7 +75,11 @@ export function SetFilterLevel(arg1:string):Promise<void>;
 
 export function SetFocusSiteActive(arg1:string,arg2:boolean):Promise<void>;
 
+export function SetLanguage(arg1:string):Promise<void>;
+
 export function SetPassword(arg1:string,arg2:string):Promise<void>;
+
+export function SetSafeSearch(arg1:string,arg2:boolean):Promise<void>;
 
 export function StartFocusMode(arg1:number):Promise<void>;
 

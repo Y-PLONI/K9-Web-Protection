@@ -2,7 +2,10 @@ export namespace config {
 	
 	export class BlockedEntry {
 	    domain: string;
+	    category: string;
 	    count: number;
+	    // Go type: time
+	    lastSeen: any;
 	
 	    static createFrom(source: any = {}) {
 	        return new BlockedEntry(source);
@@ -11,8 +14,108 @@ export namespace config {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.domain = source["domain"];
+	        this.category = source["category"];
 	        this.count = source["count"];
+	        this.lastSeen = this.convertValues(source["lastSeen"], null);
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class DayRestriction {
+	    day: string;
+	    from: string;
+	    to: string;
+	    enabled: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new DayRestriction(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.day = source["day"];
+	        this.from = source["from"];
+	        this.to = source["to"];
+	        this.enabled = source["enabled"];
+	    }
+	}
+	export class DomainRule {
+	    domain: string;
+	    includeSubdomains: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new DomainRule(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.domain = source["domain"];
+	        this.includeSubdomains = source["includeSubdomains"];
+	    }
+	}
+	export class FocusSite {
+	    domain: string;
+	    active: boolean;
+	    builtin: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new FocusSite(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.domain = source["domain"];
+	        this.active = source["active"];
+	        this.builtin = source["builtin"];
+	    }
+	}
+	export class TimeRestrictions {
+	    enabled: boolean;
+	    days: DayRestriction[];
+	
+	    static createFrom(source: any = {}) {
+	        return new TimeRestrictions(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.enabled = source["enabled"];
+	        this.days = this.convertValues(source["days"], DayRestriction);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 
 }
@@ -33,23 +136,30 @@ export namespace main {
 	        this.blockedMessage = source["blockedMessage"];
 	    }
 	}
-	export class BlocklistData {
-	    userAdded: string[];
-	    builtInDomains: number;
-	    builtInUrls: number;
+	export class ApplyView {
+	    configError: string;
+	    hostsError: string;
+	    hostsInfo: string;
+	    hostsApplied: boolean;
+	    hostsPartial: boolean;
+	    closedTunnels: number;
 	
 	    static createFrom(source: any = {}) {
-	        return new BlocklistData(source);
+	        return new ApplyView(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.userAdded = source["userAdded"];
-	        this.builtInDomains = source["builtInDomains"];
-	        this.builtInUrls = source["builtInUrls"];
+	        this.configError = source["configError"];
+	        this.hostsError = source["hostsError"];
+	        this.hostsInfo = source["hostsInfo"];
+	        this.hostsApplied = source["hostsApplied"];
+	        this.hostsPartial = source["hostsPartial"];
+	        this.closedTunnels = source["closedTunnels"];
 	    }
 	}
 	export class ContentSettings {
+	    filterLevel: string;
 	    blockAdultContent: boolean;
 	    blockImageSearch: boolean;
 	    blockYouTube: boolean;
@@ -61,11 +171,58 @@ export namespace main {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.filterLevel = source["filterLevel"];
 	        this.blockAdultContent = source["blockAdultContent"];
 	        this.blockImageSearch = source["blockImageSearch"];
 	        this.blockYouTube = source["blockYouTube"];
 	        this.safeSearch = source["safeSearch"];
 	    }
+	}
+	export class DiagnosticsView {
+	    settingsPath: string;
+	    settingsSource: string;
+	    migratedFrom: string;
+	    backupPath: string;
+	    loadError: string;
+	    readOnly: boolean;
+	    skippedLegacy: string[];
+	    skippedRules: string[];
+	    lastApply: ApplyView;
+	
+	    static createFrom(source: any = {}) {
+	        return new DiagnosticsView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.settingsPath = source["settingsPath"];
+	        this.settingsSource = source["settingsSource"];
+	        this.migratedFrom = source["migratedFrom"];
+	        this.backupPath = source["backupPath"];
+	        this.loadError = source["loadError"];
+	        this.readOnly = source["readOnly"];
+	        this.skippedLegacy = source["skippedLegacy"];
+	        this.skippedRules = source["skippedRules"];
+	        this.lastApply = this.convertValues(source["lastApply"], ApplyView);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
 	export class DisableDelayStatus {
 	    delayHours: number;
@@ -127,9 +284,48 @@ export namespace main {
 	        this.autoStart = source["autoStart"];
 	    }
 	}
+	export class RulesView {
+	    block: config.DomainRule[];
+	    allow: config.DomainRule[];
+	    display: Record<string, string>;
+	    apply: ApplyView;
+	    notice: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new RulesView(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.block = this.convertValues(source["block"], config.DomainRule);
+	        this.allow = this.convertValues(source["allow"], config.DomainRule);
+	        this.display = source["display"];
+	        this.apply = this.convertValues(source["apply"], ApplyView);
+	        this.notice = source["notice"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class Status {
 	    proxyRunning: boolean;
 	    layer1Active: boolean;
+	    layer1Idle: boolean;
 	    blockedToday: number;
 	    totalBlocked: number;
 	    proxyPort: number;
@@ -139,6 +335,8 @@ export namespace main {
 	    dbKeywords: number;
 	    inFocusMode: boolean;
 	    focusRemaining: number;
+	    inTimeRestriction: boolean;
+	    diagnostics: DiagnosticsView;
 	
 	    static createFrom(source: any = {}) {
 	        return new Status(source);
@@ -148,6 +346,7 @@ export namespace main {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.proxyRunning = source["proxyRunning"];
 	        this.layer1Active = source["layer1Active"];
+	        this.layer1Idle = source["layer1Idle"];
 	        this.blockedToday = source["blockedToday"];
 	        this.totalBlocked = source["totalBlocked"];
 	        this.proxyPort = source["proxyPort"];
@@ -157,6 +356,8 @@ export namespace main {
 	        this.dbKeywords = source["dbKeywords"];
 	        this.inFocusMode = source["inFocusMode"];
 	        this.focusRemaining = source["focusRemaining"];
+	        this.inTimeRestriction = source["inTimeRestriction"];
+	        this.diagnostics = this.convertValues(source["diagnostics"], DiagnosticsView);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

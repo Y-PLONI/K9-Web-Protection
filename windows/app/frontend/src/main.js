@@ -1053,6 +1053,7 @@ async function confirmQuit() {
 document.getElementById('quit-pw')?.addEventListener('keydown', e => { if (e.key === 'Enter') confirmQuit() })
 window.closeQuitModal = closeQuitModal
 window.confirmQuit = confirmQuit
+window.showQuitModal = showQuitModal
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 function bootstrapI18n() {

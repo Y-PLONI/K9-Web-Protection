@@ -16,18 +16,8 @@ const SOCIAL_SITES_MAP = {
 // Flat list for quick isSocial check
 const SOCIAL_DOMAINS = Object.values(SOCIAL_SITES_MAP).flat()
 
-const QUOTES = [
-  'Your future self will thank you for this moment of discipline.',
-  "Every minute not scrolling is a minute invested in yourself.",
-  "Champions are made in the moments they want to quit — but don't.",
-  'The less you respond to distractions, the more peace you will have.',
-  'Small disciplines repeated daily lead to great achievements.',
-  "Your goals don't care about your newsfeed.",
-  'Discipline is choosing between what you want now and what you want most.',
-  'Focus is the superpower of the 21st century.',
-  'The successful warrior is the average person with laser-like focus.',
-  'What you do today can improve all your tomorrows.',
-]
+// Quotes live in _locales as blocked_quote_1 … blocked_quote_10.
+const QUOTE_COUNT = 10
 
 function el(id) { return document.getElementById(id) }
 
@@ -57,28 +47,39 @@ const reason = params.get('reason') ||
 // ── Configure page content ────────────────────────────────────────────────────
 if (blockedHost) el('domain').textContent = blockedHost
 
+const quoteIndex = Math.floor(Math.random() * QUOTE_COUNT) + 1
+
+// Styling applies now; the strings wait for the locale catalog.
 if (reason === 'social') {
-  document.title = 'Stay Focused — K9 Web Protection'
   document.body.classList.add('social')
-  el('icon').textContent    = '📵'
-  el('title').textContent   = 'Stay Focused'
-  el('message').textContent = 'Social media is blocked. Use this time for something that matters.'
-  const q = el('quote')
-  q.textContent   = '"' + QUOTES[Math.floor(Math.random() * QUOTES.length)] + '"'
-  q.style.display = 'block'
+  el('icon').textContent  = '📵'
+  el('quote').style.display = 'block'
 } else if (reason === 'keyword') {
-  el('icon').textContent    = '🔑'
-  el('title').textContent   = 'Keyword Blocked'
-  el('message').textContent = 'This URL matched a blocked keyword.'
-} else {
-  el('message').textContent = 'This website is blocked by K9 Web Protection.'
+  el('icon').textContent = '🔑'
 }
+
+function applyReasonText() {
+  if (reason === 'social') {
+    document.title = k9t('blocked_page_title_social')
+    k9i18n.setText(el('title'), 'blocked_title_social')
+    k9i18n.setText(el('message'), 'blocked_message_social')
+    el('quote').textContent = '"' + k9t('blocked_quote_' + quoteIndex) + '"'
+  } else if (reason === 'keyword') {
+    k9i18n.setText(el('title'), 'blocked_title_keyword')
+    k9i18n.setText(el('message'), 'blocked_message_keyword')
+  } else {
+    k9i18n.setText(el('message'), 'blocked_message_default')
+  }
+}
+
+k9i18n.ready.then(applyReasonText).catch(e => console.error('K9 blocked i18n error:', e))
+k9i18n.onChange(applyReasonText)
 
 // ── Allow this site ───────────────────────────────────────────────────────────
 async function allowSite() {
   if (!blockedHost) return
   const btn = el('btn-allow')
-  btn.textContent = 'Adding…'
+  btn.textContent = k9t('blocked_btn_adding')
   btn.disabled    = true
 
   try {
@@ -118,7 +119,7 @@ async function allowSite() {
     window.location.href = blockedURL || '/'
   } catch (e) {
     console.error('K9 allowSite error:', e)
-    btn.textContent = 'Error — try again'
+    btn.textContent = k9t('blocked_btn_error')
     btn.disabled    = false
   }
 }

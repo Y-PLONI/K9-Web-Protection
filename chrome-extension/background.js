@@ -82,7 +82,7 @@ function incrementBlocked(domain) {
 // ── Badge ─────────────────────────────────────────────────────────────────────
 function updateBadge(s) {
   if (!s.enabled) {
-    chrome.action.setBadgeText({ text: 'OFF' })
+    chrome.action.setBadgeText({ text: chrome.i18n.getMessage('badge_off') })
     chrome.action.setBadgeBackgroundColor({ color: '#888' })
   } else if (s.focusMode) {
     chrome.action.setBadgeText({ text: '⏱' })

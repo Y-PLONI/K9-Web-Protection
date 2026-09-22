@@ -2,15 +2,16 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"html"
 	"io"
 	"net"
 	"net/http"
-	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
-	"k10webprotection/internal/config"
 	"k10webprotection/internal/database"
 	"k10webprotection/internal/i18n"
 )
@@ -103,39 +104,167 @@ func blockPageHTML(domain string) string {
 
 type OnBlockFn func(domain string)
 
+// reevaluateEvery re-checks open tunnels so time-based rules (focus windows) take effect.
+const reevaluateEvery = 30 * time.Second
+
 type Proxy struct {
-	cfg     *config.Config
+	// Dial opens upstream connections; nil uses net.DialTimeout. Set before Start.
+	Dial func(network, addr string) (net.Conn, error)
+
 	db      *database.Database
-	server  *http.Server
 	onBlock OnBlockFn
+	policy  atomic.Pointer[Policy]
+
+	mu     sync.Mutex
+	port   int
+	server *http.Server
+	stop   chan struct{}
+
+	tmu     sync.Mutex
+	running bool
+	tunnels map[*tunnel]struct{}
+
+	transportOnce sync.Once
+	transport     http.RoundTripper
 }
 
-func New(cfg *config.Config, onBlock OnBlockFn) *Proxy {
+func New(port int, onBlock OnBlockFn) *Proxy {
 	initMITM()
-	return &Proxy{cfg: cfg, db: database.DB, onBlock: onBlock}
+	p := &Proxy{port: port, db: database.DB, onBlock: onBlock, tunnels: map[*tunnel]struct{}{}}
+	p.policy.Store(&Policy{})
+	return p
+}
+
+// SetPort takes effect on the next Start.
+func (p *Proxy) SetPort(port int) {
+	p.mu.Lock()
+	p.port = port
+	p.mu.Unlock()
 }
 
 func (p *Proxy) Start() error {
-	p.server = &http.Server{
-		Addr: fmt.Sprintf("127.0.0.1:%d", p.cfg.ProxyPort),
+	p.mu.Lock()
+	port := p.port
+	p.mu.Unlock()
+	l, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		return err
+	}
+	return p.Serve(l)
+}
+
+func (p *Proxy) Serve(l net.Listener) error {
+	srv := &http.Server{
 		Handler: http.HandlerFunc(p.handle),
 		// Do NOT set ReadTimeout/WriteTimeout — they kill long-lived HTTPS tunnels.
 		// Only limit the time to read the initial request headers.
 		ReadHeaderTimeout: 15 * time.Second,
 	}
-	return p.server.ListenAndServe()
+	stop := make(chan struct{})
+	p.mu.Lock()
+	if p.server != nil {
+		p.mu.Unlock()
+		l.Close()
+		return errors.New("proxy: already running")
+	}
+	p.server, p.stop = srv, stop
+	p.mu.Unlock()
+
+	p.tmu.Lock()
+	p.running = true
+	p.tmu.Unlock()
+	go p.reevaluateLoop(stop)
+
+	err := srv.Serve(l)
+	if !errors.Is(err, http.ErrServerClosed) {
+		p.mu.Lock()
+		mine := p.server == srv
+		p.mu.Unlock()
+		if mine {
+			p.Stop()
+		}
+	}
+	return err
 }
 
+// Stop shuts the server down and closes every hijacked connection.
 func (p *Proxy) Stop() {
-	if p.server != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-		p.server.Shutdown(ctx)
-		p.server = nil
+	p.mu.Lock()
+	srv, stop := p.server, p.stop
+	p.server, p.stop = nil, nil
+	p.mu.Unlock()
+
+	p.tmu.Lock()
+	p.running = false
+	p.tmu.Unlock()
+	p.closeTunnels()
+	if srv == nil {
+		return
+	}
+	close(stop)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	srv.Shutdown(ctx)
+	p.closeTunnels() // handlers that hijacked during Shutdown
+}
+
+func (p *Proxy) reevaluateLoop(stop <-chan struct{}) {
+	t := time.NewTicker(reevaluateEvery)
+	defer t.Stop()
+	for {
+		select {
+		case <-stop:
+			return
+		case <-t.C:
+			p.Reevaluate()
+		}
 	}
 }
 
+// SetPolicy atomically swaps the policy and closes tunnels it no longer permits.
+func (p *Proxy) SetPolicy(pol Policy) (closed int) {
+	c := clonePolicy(pol)
+	p.policy.Store(&c)
+	return p.Reevaluate()
+}
+
+func (p *Proxy) Policy() Policy {
+	return clonePolicy(*p.policy.Load())
+}
+
+func (p *Proxy) HostBlocked(host string) bool {
+	h := CanonicalHost(host)
+	return p.decide(p.policy.Load(), h, connectRequest(net.JoinHostPort(h, "443"))) == verdictBlock
+}
+
+func (p *Proxy) dial(addr string) (net.Conn, error) {
+	if p.Dial != nil {
+		return p.Dial("tcp", addr)
+	}
+	return net.DialTimeout("tcp", addr, 10*time.Second)
+}
+
+func (p *Proxy) httpTransport() http.RoundTripper {
+	if p.Dial == nil {
+		return nil
+	}
+	p.transportOnce.Do(func() {
+		p.transport = &http.Transport{DialContext: func(_ context.Context, network, addr string) (net.Conn, error) {
+			return p.Dial(network, addr)
+		}}
+	})
+	return p.transport
+}
+
 // ── Request handler ───────────────────────────────────────────────────────────
+
+type verdict int
+
+const (
+	verdictPass verdict = iota
+	verdictBlock
+	verdictSafeSearch
+)
 
 func (p *Proxy) handle(w http.ResponseWriter, r *http.Request) {
 	// Recover from any panic so one bad request can't crash the proxy
@@ -145,24 +274,33 @@ func (p *Proxy) handle(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	host := hostname(r.Host)
+	host := CanonicalHost(r.Host)
+	pol := p.policy.Load()
+	switch p.decide(pol, host, r) {
+	case verdictBlock:
+		p.block(w, r, host, pol)
+	case verdictSafeSearch:
+		p.safeSearchIntercept(w, r, host, pol)
+	default:
+		p.passThrough(w, r, host, pol)
+	}
+}
 
+// decide only reads r (method and URL), so it can re-run for an open tunnel.
+func (p *Proxy) decide(pol *Policy, host string, r *http.Request) verdict {
 	// Built-in critical services (OS updates, safe-browsing, OCSP) — never block
 	if IsBuiltinAllowed(host) {
-		p.passThrough(w, r)
-		return
+		return verdictPass
 	}
 
 	// User allow-list wins
-	if p.cfg.IsAllowed(host) {
-		p.passThrough(w, r)
-		return
+	if pol.allows(host) {
+		return verdictPass
 	}
 
 	// User's custom block list
-	if p.cfg.UserBlocks(host) {
-		p.block(w, r, host)
-		return
+	if pol.blocks(host) {
+		return verdictBlock
 	}
 
 	// ── Bypass prevention (always active) ────────────────────────────────────
@@ -170,31 +308,28 @@ func (p *Proxy) handle(w http.ResponseWriter, r *http.Request) {
 	rawURL := r.URL.String()
 
 	if isWebProxy(host, rawURL) {
-		p.block(w, r, host)
-		return
+		return verdictBlock
 	}
 
 	// Detect base64-encoded redirect destinations (?__cpo=, ?url=, etc.).
 	// Catches e.g. azureserv.com/?__cpo=aHR0cHM6Ly93d3cueG54eC5jb20 → xnxx.com.
 	if decodedHost := DecodeRedirectHost(rawURL); decodedHost != "" {
-		if !IsBuiltinAllowed(decodedHost) && !p.cfg.IsAllowed(decodedHost) {
-			if p.db.BlocksDomainInCategories(decodedHost, LevelCategories[p.cfg.FilterLevel]) {
-				p.block(w, r, host)
-				return
+		if !IsBuiltinAllowed(decodedHost) && !pol.allows(decodedHost) {
+			if p.db.BlocksDomainInCategories(decodedHost, LevelCategories[pol.FilterLevel]) {
+				return verdictBlock
 			}
 		}
 	}
 
 	// ── Focus mode — block social media sites ────────────────────────────────
 
-	if p.cfg.FocusBlocks(host) {
-		p.block(w, r, host)
-		return
+	if pol.focusBlocks(host) {
+		return verdictBlock
 	}
 
 	// ── Level-based filtering ─────────────────────────────────────────────────
 
-	level := p.cfg.FilterLevel
+	level := pol.FilterLevel
 
 	if level == LevelMonitor {
 		// Monitor: no blocking, pass through
@@ -203,20 +338,17 @@ func (p *Proxy) handle(w http.ResponseWriter, r *http.Request) {
 
 		// Direct-IP bypass prevention (all levels except monitor/custom)
 		if level != LevelCustom && level != "" && isDirectIP(host) {
-			p.block(w, r, host)
-			return
+			return verdictBlock
 		}
 
 		// YouTube (high level only, or custom toggle)
-		if (level == LevelHigh || (level == LevelCustom || level == "") && p.cfg.BlockYouTube) && isYouTube(host) {
-			p.block(w, r, host)
-			return
+		if (level == LevelHigh || (level == LevelCustom || level == "") && pol.BlockYouTube) && isYouTube(host) {
+			return verdictBlock
 		}
 
 		// Image search (high level only, or custom toggle)
-		if (level == LevelHigh || (level == LevelCustom || level == "") && p.cfg.BlockImageSearch) && isImageSearch(host, rawURL) {
-			p.block(w, r, host)
-			return
+		if (level == LevelHigh || (level == LevelCustom || level == "") && pol.BlockImageSearch) && isImageSearch(host, rawURL) {
+			return verdictBlock
 		}
 
 		// Database domain lookup (category-aware for named levels, all-category for custom)
@@ -224,19 +356,17 @@ func (p *Proxy) handle(w http.ResponseWriter, r *http.Request) {
 		// user's custom block list and Focus Mode (checked above) still apply.
 		if !IsCommunicationAllowed(host) && (len(cats) > 0 || level == LevelCustom || level == "") {
 			dbCats := cats
-			if (level == LevelCustom || level == "") && p.cfg.BlockAdultContent {
+			if (level == LevelCustom || level == "") && pol.BlockAdultContent {
 				dbCats = nil // nil = all categories
 			}
 			if p.db.BlocksDomainInCategories(host, dbCats) {
-				p.block(w, r, host)
-				return
+				return verdictBlock
 			}
 			// URL-level checks (HTTP only — CONNECT is an opaque tunnel)
 			if r.Method != http.MethodConnect {
 				// Full-URL substring patterns (.xxx TLD, /porn/ path, ?q=porn query)
 				if p.db.BlocksURLInCategories(rawURL, dbCats) {
-					p.block(w, r, host)
-					return
+					return verdictBlock
 				}
 				// Keyword wildcards checked against path+query only (host covered above)
 				urlPath := r.URL.Path
@@ -244,13 +374,11 @@ func (p *Proxy) handle(w http.ResponseWriter, r *http.Request) {
 					urlPath += "?" + r.URL.RawQuery
 				}
 				if p.db.BlocksURLPatternInCategories(urlPath, dbCats) {
-					p.block(w, r, host)
-					return
+					return verdictBlock
 				}
 				// Page-content keyword phrases
 				if p.db.BlocksKeyword(rawURL) {
-					p.block(w, r, host)
-					return
+					return verdictBlock
 				}
 			}
 		}
@@ -263,36 +391,34 @@ func (p *Proxy) handle(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodConnect {
 			kwTarget = host
 		}
-		if p.cfg.UserKeywordMatch(kwTarget) {
-			p.block(w, r, host)
-			return
+		if pol.keywordMatch(kwTarget) {
+			return verdictBlock
 		}
 	}
 
 	// SafeSearch MITM
-	if r.Method == http.MethodConnect && p.cfg.SafeSearch && safeSearchDomains[host] {
-		p.safeSearchIntercept(w, r, host)
-		return
+	if r.Method == http.MethodConnect && pol.SafeSearch && safeSearchDomains[host] {
+		return verdictSafeSearch
 	}
 
-	p.passThrough(w, r)
+	return verdictPass
 }
 
-func (p *Proxy) passThrough(w http.ResponseWriter, r *http.Request) {
+func (p *Proxy) passThrough(w http.ResponseWriter, r *http.Request, host string, pol *Policy) {
 	if r.Method == http.MethodConnect {
-		p.tunnel(w, r)
+		p.tunnel(w, r, host, pol)
 	} else {
 		p.forward(w, r)
 	}
 }
 
 // block sends the K10 block page (or a plain 403 for CONNECT).
-func (p *Proxy) block(w http.ResponseWriter, r *http.Request, domain string) {
+func (p *Proxy) block(w http.ResponseWriter, r *http.Request, domain string, pol *Policy) {
 	if p.onBlock != nil {
 		go p.onBlock(domain) // async so it never delays the response
 	}
 	if r.Method == http.MethodConnect {
-		p.blockTunnel(w, domain)
+		p.blockTunnel(w, r, domain, pol)
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -302,8 +428,8 @@ func (p *Proxy) block(w http.ResponseWriter, r *http.Request, domain string) {
 }
 
 // tunnel handles HTTPS CONNECT — raw TCP pass-through (no TLS inspection).
-func (p *Proxy) tunnel(w http.ResponseWriter, r *http.Request) {
-	dest, err := net.DialTimeout("tcp", r.Host, 10*time.Second)
+func (p *Proxy) tunnel(w http.ResponseWriter, r *http.Request, host string, pol *Policy) {
+	dest, err := p.dial(r.Host)
 	if err != nil {
 		http.Error(w, "Bad Gateway", http.StatusBadGateway)
 		return
@@ -315,14 +441,23 @@ func (p *Proxy) tunnel(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Hijack unsupported", http.StatusInternalServerError)
 		return
 	}
-	conn, _, err := hj.Hijack()
+	conn, brw, err := hj.Hijack()
 	if err != nil {
 		dest.Close()
+		return
+	}
+	t := p.track(pol, r, host, KindRaw, conn)
+	defer p.untrack(t)
+	if !t.add(dest) {
 		return
 	}
 
 	// Confirm tunnel to the browser
 	conn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
+	if n := brw.Reader.Buffered(); n > 0 {
+		b, _ := brw.Reader.Peek(n)
+		dest.Write(b)
+	}
 
 	// Pipe both directions — wait for BOTH to finish before closing
 	done := make(chan struct{}, 2)
@@ -341,9 +476,7 @@ func (p *Proxy) tunnel(w http.ResponseWriter, r *http.Request) {
 		done <- struct{}{}
 	}()
 	<-done
-	<-done // wait for BOTH goroutines before closing connections
-	conn.Close()
-	dest.Close()
+	<-done
 }
 
 // forward proxies plain HTTP requests.
@@ -358,7 +491,8 @@ func (p *Proxy) forward(w http.ResponseWriter, r *http.Request) {
 	r.Header.Del("Proxy-Connection")
 
 	resp, err := (&http.Client{
-		Timeout: 30 * time.Second,
+		Transport: p.httpTransport(),
+		Timeout:   30 * time.Second,
 		CheckRedirect: func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
@@ -376,14 +510,4 @@ func (p *Proxy) forward(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(resp.StatusCode)
 	io.Copy(w, resp.Body)
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-func hostname(host string) string {
-	h, _, err := net.SplitHostPort(host)
-	if err != nil {
-		return strings.ToLower(strings.TrimSpace(host))
-	}
-	return strings.ToLower(h)
 }

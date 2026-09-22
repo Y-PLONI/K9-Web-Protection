@@ -12,15 +12,18 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
 
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/net/idna"
 
 	"k10webprotection/internal/config"
 	"k10webprotection/internal/database"
+	"k10webprotection/internal/enforce"
 	"k10webprotection/internal/hosts"
 	"k10webprotection/internal/i18n"
 	"k10webprotection/internal/proxy"
@@ -32,6 +35,7 @@ import (
 type Status struct {
 	ProxyRunning      bool                  `json:"proxyRunning"`
 	Layer1Active      bool                  `json:"layer1Active"`
+	Layer1Idle        bool                  `json:"layer1Idle"` // hosts applied fine but had nothing to write
 	BlockedToday      int                   `json:"blockedToday"`
 	TotalBlocked      int                   `json:"totalBlocked"`
 	ProxyPort         int                   `json:"proxyPort"`
@@ -42,12 +46,37 @@ type Status struct {
 	InFocusMode       bool                  `json:"inFocusMode"`
 	FocusRemaining    int                   `json:"focusRemaining"` // seconds
 	InTimeRestriction bool                  `json:"inTimeRestriction"`
+	Diagnostics       DiagnosticsView       `json:"diagnostics"`
 }
 
-type BlocklistData struct {
-	UserAdded      []string `json:"userAdded"`
-	BuiltInDomains int      `json:"builtInDomains"`
-	BuiltInURLs    int      `json:"builtInUrls"`
+// ApplyView is the outcome of pushing settings to disk, the proxy and the hosts file.
+type ApplyView struct {
+	ConfigError   string `json:"configError"`
+	HostsError    string `json:"hostsError"`
+	HostsInfo     string `json:"hostsInfo"`    // why hosts was deliberately left alone
+	HostsApplied  bool   `json:"hostsApplied"` // false while protection is off
+	HostsPartial  bool   `json:"hostsPartial"` // hosts can't cover every subdomain; the proxy does
+	ClosedTunnels int    `json:"closedTunnels"`
+}
+
+type RulesView struct {
+	Block   []config.DomainRule `json:"block"`
+	Allow   []config.DomainRule `json:"allow"`
+	Display map[string]string   `json:"display"` // Unicode form of IDN domains, keyed by domain
+	Apply   ApplyView           `json:"apply"`
+	Notice  string              `json:"notice"`
+}
+
+type DiagnosticsView struct {
+	SettingsPath   string    `json:"settingsPath"`
+	SettingsSource string    `json:"settingsSource"` // current | legacy | default
+	MigratedFrom   string    `json:"migratedFrom"`
+	BackupPath     string    `json:"backupPath"`
+	LoadError      string    `json:"loadError"`
+	ReadOnly       bool      `json:"readOnly"`
+	SkippedLegacy  []string  `json:"skippedLegacy"`
+	SkippedRules   []string  `json:"skippedRules"`
+	LastApply      ApplyView `json:"lastApply"`
 }
 
 type KeywordsData struct {
@@ -89,13 +118,38 @@ type DisableDelayStatus struct {
 
 type App struct {
 	ctx          context.Context
-	cfg          *config.Config
+	cur          atomic.Pointer[settings]
+	loadOpts     config.LoadOptions
+	hostsActive  func() bool
+	sysProxy     func(on bool) // setSystemProxy; replaced in tests
 	proxy        *proxy.Proxy
+	applier      *enforce.Applier
 	proxyRunning int32 // accessed via sync/atomic; 0=stopped 1=running
+	runPort      int32 // port the running proxy listens on; atomic
+	reloadMu     sync.Mutex
 	quitAuth     int32 // 1 = quit authorised; lets OnBeforeClose pass through
+
+	statsMu    sync.Mutex
+	statsTimer *time.Timer
 }
 
-func NewApp() *App { return &App{} }
+// statsSaveDelay batches stats writes so a burst of blocked requests is one save.
+const statsSaveDelay = 5 * time.Second
+
+// settings is swapped as a whole by ReloadSettings.
+type settings struct {
+	cfg     *config.Config
+	loadErr error
+}
+
+func NewApp(cfg *config.Config, loadErr error, opts config.LoadOptions) *App {
+	a := &App{loadOpts: opts, hostsActive: hosts.IsActive}
+	a.sysProxy = a.setSystemProxy
+	a.cur.Store(&settings{cfg: cfg, loadErr: loadErr})
+	return a
+}
+
+func (a *App) conf() *config.Config { return a.cur.Load().cfg }
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
@@ -109,23 +163,19 @@ func (a *App) startup(ctx context.Context) {
 		wailsruntime.WindowUnminimise(a.ctx)
 		wailsruntime.EventsEmit(a.ctx, "quit-requested")
 	})
-	a.cfg = config.Load()
-	a.proxy = proxy.New(a.cfg, func(domain string) {
-		cat := database.DB.CategoryFor(domain)
-		a.cfg.IncrementBlocked(domain, cat)
-		a.cfg.Save()
-	})
-	if a.cfg.SafeSearch {
-		go hosts.SetSafeSearch(true)
-	}
+
+	a.proxy = proxy.New(a.conf().PolicyView().ProxyPort, a.onBlock)
+	a.applier = enforce.New(a.conf(), a.proxy, enforce.HostsFunc(hosts.Apply), a.protectionOn)
+	a.applier.Enforce() // policy in place before the proxy listens
 
 	// Always clear system proxy first — recovers from a previous force-kill
 	// that left the proxy enabled with nothing listening on the port.
-	a.setSystemProxy(false)
-	if a.cfg.AutoStart {
+	a.sysProxy(false)
+	if a.conf().AutoStart {
 		go func() {
 			if err := a.startProxyAndWait(); err == nil {
-				a.setSystemProxy(true)
+				a.sysProxy(true)
+				a.applier.Enforce()
 			}
 		}()
 	}
@@ -134,10 +184,10 @@ func (a *App) startup(ctx context.Context) {
 		signal.Notify(sigs, syscall.SIGTERM, syscall.SIGINT)
 		for range sigs {
 			tray.Stop()
-			a.setSystemProxy(false)
+			a.sysProxy(false)
 			a.proxy.Stop()
 			atomic.StoreInt32(&a.proxyRunning, 0)
-			a.cfg.Save()
+			a.flushStats()
 			os.Exit(0)
 		}
 	}()
@@ -145,137 +195,242 @@ func (a *App) startup(ctx context.Context) {
 
 func (a *App) shutdown(_ context.Context) {
 	tray.Stop()
-	a.setSystemProxy(false)
+	a.sysProxy(false)
 	a.proxy.Stop()
-	a.cfg.Save()
+	a.flushStats()
+}
+
+func (a *App) protectionOn() bool { return atomic.LoadInt32(&a.proxyRunning) == 1 }
+
+func (a *App) onBlock(domain string) {
+	a.conf().IncrementBlocked(domain, database.DB.CategoryFor(domain))
+	a.statsMu.Lock()
+	if a.statsTimer == nil {
+		a.statsTimer = time.AfterFunc(statsSaveDelay, a.flushStats)
+	}
+	a.statsMu.Unlock()
+}
+
+func (a *App) flushStats() {
+	a.statsMu.Lock()
+	if a.statsTimer != nil {
+		a.statsTimer.Stop()
+		a.statsTimer = nil
+	}
+	a.statsMu.Unlock()
+	a.conf().Save()
 }
 
 // ── Status ────────────────────────────────────────────────────────────────────
 
 func (a *App) ClearStats() error {
-	a.cfg.Stats.TopBlocked = nil
-	a.cfg.Stats.BlockedToday = 0
-	a.cfg.Stats.TotalBlocked = 0
-	return a.cfg.Save()
+	a.conf().Update(func(c *config.Config) {
+		c.Stats.TopBlocked = nil
+		c.Stats.BlockedToday = 0
+		c.Stats.TotalBlocked = 0
+	})
+	return a.saveErr(a.conf().Save())
 }
 
 func (a *App) GetStatus() Status {
 	db := database.DB
-	rem := int(a.cfg.FocusModeRemaining().Seconds())
+	rem := int(a.conf().FocusModeRemaining().Seconds())
+	var stats config.Stats
+	var port int
+	a.conf().Update(func(c *config.Config) {
+		stats = c.Stats
+		stats.TopBlocked = append([]config.BlockedEntry(nil), c.Stats.TopBlocked...)
+		port = c.ProxyPort
+	})
+	last := a.applier.Last()
+	on := a.protectionOn()
+	if on {
+		port = a.listenPort()
+	}
+	ok := last.HostsApplied && last.HostsErr == nil
+	empty := len(last.Hosts.BlockedNames)+len(last.Hosts.SafeSearchNames) == 0
+	l1 := on && ((ok && !empty) || a.hostsActive())
 	return Status{
-		ProxyRunning:      atomic.LoadInt32(&a.proxyRunning) == 1,
-		Layer1Active:      hosts.IsActive(),
-		BlockedToday:      a.cfg.Stats.BlockedToday,
-		TotalBlocked:      a.cfg.Stats.TotalBlocked,
-		ProxyPort:         a.cfg.ProxyPort,
-		TopBlocked:        a.cfg.Stats.TopBlocked,
+		ProxyRunning:      on,
+		Layer1Active:      l1,
+		Layer1Idle:        on && !l1 && ok && empty,
+		BlockedToday:      stats.BlockedToday,
+		TotalBlocked:      stats.TotalBlocked,
+		ProxyPort:         port,
+		TopBlocked:        stats.TopBlocked,
 		DBDomains:         db.DomainCount(),
 		DBURLs:            db.URLCount(),
 		DBKeywords:        db.KeywordCount(),
-		InFocusMode:       a.cfg.InFocusMode(),
+		InFocusMode:       a.conf().InFocusMode(),
 		FocusRemaining:    rem,
-		InTimeRestriction: a.cfg.InTimeRestriction(),
+		InTimeRestriction: a.conf().InTimeRestriction(),
+		Diagnostics:       a.diagnostics(last),
 	}
 }
+
+func (a *App) diagnostics(last enforce.ApplyStatus) DiagnosticsView {
+	d := a.conf().Diagnostics()
+	v := DiagnosticsView{
+		SettingsPath:   d.Path,
+		SettingsSource: d.Source,
+		MigratedFrom:   d.MigratedFrom,
+		BackupPath:     d.BackupPath,
+		LoadError:      d.LoadErr,
+		ReadOnly:       a.conf().ReadOnly(),
+		SkippedLegacy:  nonNil(d.SkippedLegacy),
+		SkippedRules:   nonNil(d.SkippedRules),
+		LastApply:      applyView(last),
+	}
+	if le := a.cur.Load().loadErr; v.LoadError == "" && le != nil {
+		v.LoadError = le.Error()
+	}
+	return v
+}
+
+// ReloadSettings reads a read-only settings file again and, if it now loads, enforces it.
+func (a *App) ReloadSettings() (DiagnosticsView, error) {
+	a.reloadMu.Lock()
+	defer a.reloadMu.Unlock()
+	if !a.conf().ReadOnly() {
+		return a.diagnostics(a.applier.Last()), nil
+	}
+	lang := i18n.Lang()
+	cfg, err := config.LoadWith(a.loadOpts)
+	if err != nil {
+		i18n.SetLang(lang) // a failed load falls back to defaults, language included
+		return a.diagnostics(a.applier.Last()), errors.New(i18n.T("err.settingsReloadFailed", err.Error()))
+	}
+	a.cur.Store(&settings{cfg: cfg}) // a new port takes effect when the proxy next starts
+	a.applier.SetStore(cfg)
+	return a.diagnostics(a.applier.Retry()), nil
+}
+
+// RetryHosts writes the hosts file again, prompting for administrator permission even if it was declined.
+func (a *App) RetryHosts() ApplyView { return applyView(a.applier.Retry()) }
 
 // ── Protection on/off ─────────────────────────────────────────────────────────
 
 func (a *App) EnableProtection() error {
-	if err := hosts.Install(a.cfg.GetUserBlocklist()); err != nil {
-		return err
-	}
 	if err := a.startProxyAndWait(); err != nil {
 		return err
 	}
-	a.setSystemProxy(true)
+	a.sysProxy(true)
+	st := a.applier.Retry() // turning protection on may prompt for elevation again
+	if err := applyErr(st); err != nil {
+		return err
+	}
+	if st.HostsErr != nil {
+		return errors.New(hostsErrText(st.HostsErr))
+	}
 	return nil
 }
 
 func (a *App) DisableProtection(password string) error {
-	if a.cfg.PasswordHash != "" && !a.verifyPassword(password) {
+	if !a.verifyPassword(password) {
 		return errors.New(i18n.T("err.incorrectPassword"))
 	}
-	if a.cfg.InFocusMode() {
-		rem := int(a.cfg.FocusModeRemaining().Minutes())
+	if a.conf().InFocusMode() {
+		rem := int(a.conf().FocusModeRemaining().Minutes())
 		return errors.New(i18n.T("err.focusModeActive", rem))
 	}
-	allowed, remaining := a.cfg.DisableAllowed()
+	allowed, remaining := a.conf().DisableAllowed()
 	if !allowed {
 		return errors.New(i18n.T("err.disableDelayActive", remaining.Hours()))
 	}
-	a.cfg.ClearDisableRequest()
+	a.conf().ClearDisableRequest()
 	a.proxy.Stop()
 	atomic.StoreInt32(&a.proxyRunning, 0)
-	a.setSystemProxy(false)
-	return a.cfg.Save()
+	a.sysProxy(false)
+	var msgs []string
+	if err := a.applier.ClearHosts(); err != nil {
+		msgs = append(msgs, i18n.T("err.hostsClearFailed", hostsErrText(err)))
+	}
+	if err := a.saveErr(a.conf().Save()); err != nil {
+		msgs = append(msgs, err.Error())
+	}
+	if len(msgs) > 0 {
+		return errors.New(strings.Join(msgs, " · "))
+	}
+	return nil
 }
 
 func (a *App) RequestDisable() error {
-	if a.cfg.DisableDelayHours <= 0 {
+	if a.conf().DisableDelayHours <= 0 {
 		return errors.New(i18n.T("err.noDelayConfigured"))
 	}
-	a.cfg.RequestDisable()
-	return a.cfg.Save()
+	a.conf().RequestDisable()
+	return a.saveErr(a.conf().Save())
 }
 
 func (a *App) GetDisableDelayStatus() DisableDelayStatus {
-	allowed, remaining := a.cfg.DisableAllowed()
+	allowed, remaining := a.conf().DisableAllowed()
 	return DisableDelayStatus{
-		DelayHours:       a.cfg.DisableDelayHours,
-		RequestPending:   a.cfg.DisableRequestedAt != nil,
+		DelayHours:       a.conf().DisableDelayHours,
+		RequestPending:   a.conf().DisableRequestedAt != nil,
 		ReadyToDisable:   allowed,
 		RemainingSeconds: int(remaining.Seconds()),
 	}
 }
 
-// ── Block list ────────────────────────────────────────────────────────────────
+// ── Block / allow rules ───────────────────────────────────────────────────────
 
-func (a *App) GetBlocklist() BlocklistData {
-	db := database.DB
-	return BlocklistData{
-		UserAdded:      a.cfg.GetUserBlocklist(),
-		BuiltInDomains: db.DomainCount(),
-		BuiltInURLs:    db.URLCount(),
+// GetRules returns the rules as last applied to the proxy.
+func (a *App) GetRules() RulesView { return rulesView(a.applier.Last()) }
+
+func (a *App) AddBlockRule(input string, includeSubdomains bool) (RulesView, error) {
+	r, err := config.ParseRule(input, includeSubdomains)
+	if err != nil {
+		return RulesView{}, ruleErr(err)
 	}
-}
-
-func (a *App) AddToBlocklist(domain string) error {
-	domain = cleanDomain(domain)
-	if domain == "" {
-		return errors.New(i18n.T("err.invalidDomain"))
+	// narrowing weakens protection, so it goes through the password-checked remove
+	if r, err = a.conf().AddBlockRule(r); errors.Is(err, config.ErrNarrowing) {
+		return RulesView{}, errors.New(i18n.T("err.ruleNarrowing", displayDomain(r.Domain)))
+	} else if err != nil {
+		return RulesView{}, ruleErr(err)
 	}
-	a.cfg.AddUserBlocklist(domain)
-	return a.cfg.Save()
-}
-
-func (a *App) RemoveFromBlocklist(domain string) error {
-	a.cfg.RemoveUserBlocklist(domain)
-	return a.cfg.Save()
-}
-
-// ── Allow list ────────────────────────────────────────────────────────────────
-
-func (a *App) GetAllowlist() []string { return a.cfg.GetUserAllowlist() }
-
-func (a *App) AddToAllowlist(domain string) error {
-	domain = cleanDomain(domain)
-	if domain == "" {
-		return errors.New(i18n.T("err.invalidDomain"))
+	v := rulesView(a.applier.Apply())
+	if proxy.IsBuiltinAllowed(r.Domain) {
+		v.Notice = i18n.T("notice.ruleBuiltinExempt", displayDomain(r.Domain))
 	}
-	a.cfg.AddUserAllowlist(domain)
-	return a.cfg.Save()
+	return v, nil
 }
 
-func (a *App) RemoveFromAllowlist(domain string) error {
-	a.cfg.RemoveUserAllowlist(domain)
-	return a.cfg.Save()
+func (a *App) RemoveBlockRule(password, domain string) (RulesView, error) {
+	if !a.verifyPassword(password) {
+		return RulesView{}, errors.New(i18n.T("err.incorrectPassword"))
+	}
+	if !a.conf().RemoveBlockRule(domain) {
+		return RulesView{}, errors.New(i18n.T("err.ruleNotFound"))
+	}
+	return rulesView(a.applier.Apply()), nil
+}
+
+func (a *App) AddAllowRule(password, input string, includeSubdomains bool) (RulesView, error) {
+	if !a.verifyPassword(password) {
+		return RulesView{}, errors.New(i18n.T("err.incorrectPassword"))
+	}
+	r, err := config.ParseRule(input, includeSubdomains)
+	if err != nil {
+		return RulesView{}, ruleErr(err)
+	}
+	if err := a.conf().UpsertAllowRule(r); err != nil {
+		return RulesView{}, ruleErr(err)
+	}
+	return rulesView(a.applier.Apply()), nil
+}
+
+func (a *App) RemoveAllowRule(domain string) (RulesView, error) {
+	if !a.conf().RemoveAllowRule(domain) {
+		return RulesView{}, errors.New(i18n.T("err.ruleNotFound"))
+	}
+	return rulesView(a.applier.Apply()), nil
 }
 
 // ── Keywords ──────────────────────────────────────────────────────────────────
 
 func (a *App) GetKeywords() KeywordsData {
 	return KeywordsData{
-		UserAdded:    a.cfg.GetUserKeywords(),
+		UserAdded:    a.conf().GetUserKeywords(),
 		BuiltInCount: database.DB.KeywordCount(),
 	}
 }
@@ -285,24 +440,25 @@ func (a *App) AddKeyword(keyword string) error {
 	if keyword == "" {
 		return errors.New(i18n.T("err.emptyKeyword"))
 	}
-	a.cfg.AddUserKeyword(keyword)
-	return a.cfg.Save()
+	a.conf().AddUserKeyword(keyword)
+	return applyErr(a.applier.Apply())
 }
 
 func (a *App) RemoveKeyword(keyword string) error {
-	a.cfg.RemoveUserKeyword(keyword)
-	return a.cfg.Save()
+	a.conf().RemoveUserKeyword(keyword)
+	return applyErr(a.applier.Apply())
 }
 
 // ── Content Settings ──────────────────────────────────────────────────────────
 
 func (a *App) GetContentSettings() ContentSettings {
+	v := a.conf().PolicyView()
 	return ContentSettings{
-		FilterLevel:       a.cfg.FilterLevel,
-		BlockAdultContent: a.cfg.BlockAdultContent,
-		BlockImageSearch:  a.cfg.BlockImageSearch,
-		BlockYouTube:      a.cfg.BlockYouTube,
-		SafeSearch:        a.cfg.SafeSearch,
+		FilterLevel:       v.FilterLevel,
+		BlockAdultContent: v.BlockAdultContent,
+		BlockImageSearch:  v.BlockImageSearch,
+		BlockYouTube:      v.BlockYouTube,
+		SafeSearch:        v.SafeSearch,
 	}
 }
 
@@ -325,30 +481,37 @@ func (a *App) SetFilterLevel(level string) error {
 	default:
 		return errors.New("use SaveContentSettings for monitor/custom levels")
 	}
-	a.cfg.FilterLevel = level
-	return a.cfg.Save()
+	a.conf().Update(func(c *config.Config) { c.FilterLevel = level })
+	return applyErr(a.applier.Apply())
 }
 
 func (a *App) SaveContentSettings(password string, s ContentSettings) error {
-	if a.cfg.PasswordHash != "" && !a.verifyPassword(password) {
+	if !a.verifyPassword(password) {
 		return errors.New(i18n.T("err.incorrectPassword"))
 	}
-	a.cfg.FilterLevel = s.FilterLevel
-	a.cfg.BlockAdultContent = s.BlockAdultContent
-	a.cfg.BlockImageSearch = s.BlockImageSearch
-	a.cfg.BlockYouTube = s.BlockYouTube
-	a.cfg.SafeSearch = s.SafeSearch
-	if err := a.cfg.Save(); err != nil {
-		return err
+	a.conf().Update(func(c *config.Config) {
+		c.FilterLevel = s.FilterLevel
+		c.BlockAdultContent = s.BlockAdultContent
+		c.BlockImageSearch = s.BlockImageSearch
+		c.BlockYouTube = s.BlockYouTube
+		c.SafeSearch = s.SafeSearch
+	})
+	return applyErr(a.applier.Apply())
+}
+
+// SetSafeSearch needs the password only to turn SafeSearch off.
+func (a *App) SetSafeSearch(password string, enabled bool) error {
+	if !enabled && !a.verifyPassword(password) {
+		return errors.New(i18n.T("err.incorrectPassword"))
 	}
-	go hosts.SetSafeSearch(s.SafeSearch)
-	return nil
+	a.conf().Update(func(c *config.Config) { c.SafeSearch = enabled })
+	return applyErr(a.applier.Apply())
 }
 
 // ── Language ──────────────────────────────────────────────────────────────────
 
 // GetLanguage returns the stored language choice; empty means none has been made yet.
-func (a *App) GetLanguage() string { return a.cfg.Language }
+func (a *App) GetLanguage() string { return a.conf().Language }
 
 // SetLanguage switches the backend language and persists it.
 func (a *App) SetLanguage(lang string) error {
@@ -359,43 +522,51 @@ func (a *App) SetLanguage(lang string) error {
 		return errors.New(i18n.T("err.unsupportedLanguage"))
 	}
 	i18n.SetLang(lang)
-	a.cfg.SetLanguage(lang)
-	return a.cfg.Save()
+	a.conf().SetLanguage(lang)
+	return a.saveErr(a.conf().Save())
 }
 
 // ── Advanced Settings ─────────────────────────────────────────────────────────
 
 func (a *App) GetAdvancedSettings() AdvancedSettings {
-	return AdvancedSettings{
-		DisableDelayHours: a.cfg.DisableDelayHours,
-		BlockedMessage:    a.cfg.BlockedMessage,
-	}
+	var s AdvancedSettings
+	a.conf().Update(func(c *config.Config) {
+		s = AdvancedSettings{DisableDelayHours: c.DisableDelayHours, BlockedMessage: c.BlockedMessage}
+	})
+	return s
 }
 
 func (a *App) SaveAdvancedSettings(password string, s AdvancedSettings) error {
-	if a.cfg.PasswordHash != "" && !a.verifyPassword(password) {
+	if !a.verifyPassword(password) {
 		return errors.New(i18n.T("err.incorrectPassword"))
 	}
-	a.cfg.DisableDelayHours = s.DisableDelayHours
-	if s.BlockedMessage != "" {
-		a.cfg.BlockedMessage = s.BlockedMessage
-	}
-	return a.cfg.Save()
+	a.conf().Update(func(c *config.Config) {
+		c.DisableDelayHours = s.DisableDelayHours
+		if s.BlockedMessage != "" {
+			c.BlockedMessage = s.BlockedMessage
+		}
+	})
+	return a.saveErr(a.conf().Save())
 }
 
 // ── Proxy Settings ────────────────────────────────────────────────────────────
 
 func (a *App) GetProxySettings() ProxySettings {
-	return ProxySettings{ProxyPort: a.cfg.ProxyPort, AutoStart: a.cfg.AutoStart}
+	var s ProxySettings
+	a.conf().Update(func(c *config.Config) { s = ProxySettings{ProxyPort: c.ProxyPort, AutoStart: c.AutoStart} })
+	return s
 }
 
 func (a *App) SaveProxySettings(s ProxySettings) error {
 	if s.ProxyPort < 1024 || s.ProxyPort > 65535 {
 		return errors.New(i18n.T("err.portRange"))
 	}
-	a.cfg.ProxyPort = s.ProxyPort
-	a.cfg.AutoStart = s.AutoStart
-	return a.cfg.Save()
+	a.conf().Update(func(c *config.Config) {
+		c.ProxyPort = s.ProxyPort
+		c.AutoStart = s.AutoStart
+	})
+	a.proxy.SetPort(s.ProxyPort)
+	return a.saveErr(a.conf().Save())
 }
 
 // ── Focus Mode ────────────────────────────────────────────────────────────────
@@ -404,81 +575,82 @@ func (a *App) StartFocusMode(minutes int) error {
 	if minutes < 1 || minutes > 1440 {
 		return errors.New(i18n.T("err.focusDurationRange"))
 	}
-	a.cfg.SetFocusMode(minutes)
-	return a.cfg.Save()
+	a.conf().SetFocusMode(minutes)
+	return applyErr(a.applier.Apply())
 }
 
 func (a *App) StopFocusMode(password string) error {
-	if a.cfg.PasswordHash != "" && !a.verifyPassword(password) {
+	if !a.verifyPassword(password) {
 		return errors.New(i18n.T("err.incorrectPassword"))
 	}
-	a.cfg.StopFocusMode()
-	return a.cfg.Save()
+	a.conf().StopFocusMode()
+	return applyErr(a.applier.Apply())
 }
 
 func (a *App) GetFocusMode() FocusModeStatus {
 	return FocusModeStatus{
-		Active:    a.cfg.InFocusMode(),
-		Remaining: int(a.cfg.FocusModeRemaining().Seconds()),
+		Active:    a.conf().InFocusMode(),
+		Remaining: int(a.conf().FocusModeRemaining().Seconds()),
 	}
 }
 
 // ── Focus Sites ───────────────────────────────────────────────────────────────
 
 func (a *App) GetFocusSites() []config.FocusSite {
-	return a.cfg.GetFocusSites()
+	return a.conf().GetFocusSites()
 }
 
 func (a *App) SetFocusSiteActive(domain string, active bool) error {
-	a.cfg.SetFocusSiteActive(domain, active)
-	return a.cfg.Save()
+	a.conf().SetFocusSiteActive(domain, active)
+	return applyErr(a.applier.Apply())
 }
 
 func (a *App) AddFocusSite(domain string) error {
-	domain = cleanDomain(domain)
-	if domain == "" {
-		return errors.New(i18n.T("err.invalidDomain"))
+	r, err := config.ParseRule(domain, true)
+	if err != nil {
+		return ruleErr(err)
 	}
-	a.cfg.AddFocusSite(domain)
-	return a.cfg.Save()
+	a.conf().AddFocusSite(r.Domain)
+	return applyErr(a.applier.Apply())
 }
 
 func (a *App) RemoveFocusSite(domain string) error {
-	a.cfg.RemoveFocusSite(domain)
-	return a.cfg.Save()
+	a.conf().RemoveFocusSite(domain)
+	return applyErr(a.applier.Apply())
 }
 
 // ── Time Restrictions ─────────────────────────────────────────────────────────
 
 func (a *App) GetTimeRestrictions() config.TimeRestrictions {
-	return a.cfg.GetTimeRestrictions()
+	return a.conf().GetTimeRestrictions()
 }
 
 func (a *App) SaveTimeRestrictions(tr config.TimeRestrictions) error {
-	a.cfg.SaveTimeRestrictions(tr)
-	return a.cfg.Save()
+	a.conf().SaveTimeRestrictions(tr)
+	return applyErr(a.applier.Apply())
 }
 
 // ── Password ──────────────────────────────────────────────────────────────────
 
-func (a *App) HasPassword() bool { return a.cfg.PasswordHash != "" }
+// HasPassword is also true for an unreadable config, so the UI still prompts (and fails closed).
+func (a *App) HasPassword() bool { return a.passwordHash() != "" || a.conf().ReadOnly() }
 
 func (a *App) VerifyPassword(password string) bool { return a.verifyPassword(password) }
 
 func (a *App) SetPassword(current, newPass string) error {
-	if a.cfg.PasswordHash != "" && !a.verifyPassword(current) {
+	if !a.verifyPassword(current) {
 		return errors.New(i18n.T("err.incorrectCurrentPassword"))
 	}
-	if newPass == "" {
-		a.cfg.PasswordHash = ""
-		return a.cfg.Save()
+	hash := ""
+	if newPass != "" {
+		h, err := bcrypt.GenerateFromPassword([]byte(newPass), bcrypt.DefaultCost)
+		if err != nil {
+			return err
+		}
+		hash = string(h)
 	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(newPass), bcrypt.DefaultCost)
-	if err != nil {
-		return err
-	}
-	a.cfg.PasswordHash = string(hash)
-	return a.cfg.Save()
+	a.conf().Update(func(c *config.Config) { c.PasswordHash = hash })
+	return a.saveErr(a.conf().Save())
 }
 
 func (a *App) ConfirmQuit(password string) error {
@@ -490,17 +662,24 @@ func (a *App) ConfirmQuit(password string) error {
 	return nil
 }
 
+func (a *App) passwordHash() string {
+	var h string
+	a.conf().Update(func(c *config.Config) { h = c.PasswordHash })
+	return h
+}
+
 func (a *App) verifyPassword(p string) bool {
-	if a.cfg.PasswordHash == "" {
-		return true
+	hash := a.passwordHash()
+	if hash == "" {
+		return !a.conf().ReadOnly() // an unreadable config has no password to check against
 	}
-	return bcrypt.CompareHashAndPassword([]byte(a.cfg.PasswordHash), []byte(p)) == nil
+	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(p)) == nil
 }
 
 // ── Uninstall ─────────────────────────────────────────────────────────────────
 
 func (a *App) Uninstall(password string) error {
-	if a.cfg.PasswordHash != "" && !a.verifyPassword(password) {
+	if !a.verifyPassword(password) {
 		return errors.New(i18n.T("err.incorrectPassword"))
 	}
 
@@ -528,12 +707,7 @@ Remove-ItemProperty -Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Run' 
 
 # Remove hosts entries
 $hostsPath = "$env:SystemRoot\System32\drivers\etc\hosts"
-if (Test-Path $hostsPath) {
-    $c = [System.IO.File]::ReadAllText($hostsPath)
-    $c = [System.Text.RegularExpressions.Regex]::Replace($c,'(?s)\r?\n# K10-Web-Protection START.*?# K10-Web-Protection END\r?\n?','')
-    $c = [System.Text.RegularExpressions.Regex]::Replace($c,'(?s)\r?\n# K10-SafeSearch START.*?# K10-SafeSearch END\r?\n?','')
-    [System.IO.File]::WriteAllText($hostsPath,$c)
-}
+`+hostsCleanupPS+`
 ipconfig /flushdns | Out-Null
 
 # Remove K10 CA from Windows trust stores
@@ -554,12 +728,12 @@ Remove-Item -Path $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyConti
 		return fmt.Errorf("%s: %w", i18n.T("err.prepareUninstallScript"), err)
 	}
 	scriptPath := tmp.Name()
-	tmp.WriteString(cleanupScript)
+	tmp.WriteString(utf8BOM + cleanupScript)
 	tmp.Close()
 
 	a.proxy.Stop()
 	atomic.StoreInt32(&a.proxyRunning, 0)
-	a.setSystemProxy(false)
+	a.sysProxy(false)
 
 	// Run elevated and detached so the app can quit before the script finishes.
 	cmd := exec.Command("powershell", "-Command",
@@ -579,6 +753,20 @@ Remove-Item -Path $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyConti
 	}()
 	return nil
 }
+
+// utf8BOM makes Windows PowerShell 5.1 read a script's non-ASCII paths as UTF-8, not ANSI.
+const utf8BOM = "\ufeff"
+
+// hostsCleanupPS removes every K10 and legacy K9 section from $hostsPath, leaving other bytes as they are.
+const hostsCleanupPS = `if (Test-Path $hostsPath) {
+    $enc = [System.Text.Encoding]::GetEncoding(28591)
+    $orig = $enc.GetString([System.IO.File]::ReadAllBytes($hostsPath))
+    $c = $orig
+    foreach ($m in 'K10-Web-Protection','K10-SafeSearch','K9-Web-Protection') {
+        $c = [System.Text.RegularExpressions.Regex]::Replace($c, '(?m)^(\u00EF\u00BB\u00BF)?[ \t]*# ' + $m + ' START[ \t]*\r?\n(?:.*\n)*?[ \t]*# ' + $m + ' END[ \t]*(?:\r?\n|\z)', '$1')
+    }
+    if ($c -cne $orig) { [System.IO.File]::WriteAllBytes($hostsPath, $enc.GetBytes($c)) }
+}`
 
 // ── CA certificate ────────────────────────────────────────────────────────────
 
@@ -602,7 +790,7 @@ func (a *App) InstallCACert() error {
 		return fmt.Errorf("%s: %w", i18n.T("err.prepareInstallScript"), err)
 	}
 	scriptPath := tmp.Name()
-	tmp.WriteString(script)
+	tmp.WriteString(utf8BOM + script)
 	tmp.Close()
 	defer os.Remove(scriptPath)
 
@@ -623,6 +811,9 @@ func (a *App) startProxyAndWait() error {
 	if !atomic.CompareAndSwapInt32(&a.proxyRunning, 0, 1) {
 		return nil
 	}
+	port := a.port()
+	a.proxy.SetPort(port)
+	atomic.StoreInt32(&a.runPort, int32(port))
 	errCh := make(chan error, 1)
 	go func() {
 		if err := a.proxy.Start(); err != nil {
@@ -630,7 +821,7 @@ func (a *App) startProxyAndWait() error {
 			errCh <- err
 		}
 	}()
-	addr := fmt.Sprintf("127.0.0.1:%d", a.cfg.ProxyPort)
+	addr := fmt.Sprintf("127.0.0.1:%d", port)
 	deadline := time.Now().Add(5 * time.Second)
 	for time.Now().Before(deadline) {
 		select {
@@ -645,14 +836,14 @@ func (a *App) startProxyAndWait() error {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	return errors.New(i18n.T("err.proxyStartTimeout", a.cfg.ProxyPort))
+	return errors.New(i18n.T("err.proxyStartTimeout", port))
 }
 
 // setSystemProxy sets or clears the Windows system-wide HTTP/HTTPS proxy via registry.
 func (a *App) setSystemProxy(on bool) {
 	const keyPath = `HKCU\Software\Microsoft\Windows\CurrentVersion\Internet Settings`
 	if on {
-		server := fmt.Sprintf("127.0.0.1:%d", a.cfg.ProxyPort)
+		server := fmt.Sprintf("127.0.0.1:%d", a.listenPort())
 		exec.Command("reg", "add", keyPath, "/v", "ProxyEnable", "/t", "REG_DWORD", "/d", "1", "/f").Run()
 		exec.Command("reg", "add", keyPath, "/v", "ProxyServer", "/t", "REG_SZ", "/d", server, "/f").Run()
 		exec.Command("reg", "add", keyPath, "/v", "ProxyOverride", "/t", "REG_SZ", "/d",
@@ -698,10 +889,98 @@ try {
 	cmd.Start() //nolint:errcheck — intentionally fire-and-forget
 }
 
-func cleanDomain(d string) string {
-	d = strings.ToLower(strings.TrimSpace(d))
-	for _, pfx := range []string{"https://", "http://", "www."} {
-		d = strings.TrimPrefix(d, pfx)
+func (a *App) port() int {
+	var p int
+	a.conf().Update(func(c *config.Config) { p = c.ProxyPort })
+	return p
+}
+
+// listenPort is the running proxy's port, which a changed setting does not move until restart.
+func (a *App) listenPort() int {
+	if p := atomic.LoadInt32(&a.runPort); a.protectionOn() && p != 0 {
+		return int(p)
 	}
-	return strings.Split(d, "/")[0]
+	return a.port()
+}
+
+func nonNil[T any](s []T) []T {
+	if s == nil {
+		return []T{}
+	}
+	return s
+}
+
+func rulesView(st enforce.ApplyStatus) RulesView {
+	v := RulesView{Block: nonNil(st.View.Block), Allow: nonNil(st.View.Allow), Display: map[string]string{}, Apply: applyView(st)}
+	for _, r := range append(append([]config.DomainRule(nil), v.Block...), v.Allow...) {
+		if d := displayDomain(r.Domain); d != r.Domain {
+			v.Display[r.Domain] = d
+		}
+	}
+	return v
+}
+
+// displayDomain shows an IDN domain in Unicode; the stored punycode stays the key.
+func displayDomain(d string) string {
+	if u, err := idna.ToUnicode(d); err == nil && u != "" {
+		return u
+	}
+	return d
+}
+
+func applyView(st enforce.ApplyStatus) ApplyView {
+	v := ApplyView{HostsApplied: st.HostsApplied, HostsPartial: st.HostsApplied && st.Hosts.Partial, ClosedTunnels: st.ClosedTunnels}
+	if st.ConfigErr != nil {
+		v.ConfigError = saveErrText(st.ConfigErr)
+	}
+	if st.HostsErr != nil {
+		v.HostsError = hostsErrText(st.HostsErr)
+	}
+	switch {
+	case errors.Is(st.HostsSkipped, enforce.ErrProtectionOff):
+		v.HostsInfo = i18n.T("info.hostsProtectionOff")
+	case errors.Is(st.HostsSkipped, enforce.ErrSettingsUnreadable):
+		v.HostsInfo = i18n.T("info.hostsSettingsUnreadable")
+	}
+	return v
+}
+
+func hostsErrText(err error) string {
+	switch {
+	case errors.Is(err, hosts.ErrElevationCancelled):
+		return i18n.T("err.hostsElevationDeclined")
+	case errors.Is(err, hosts.ErrVerifyFailed):
+		return i18n.T("err.hostsVerifyFailed")
+	default:
+		return i18n.T("err.hostsWriteFailed", err.Error())
+	}
+}
+
+// applyErr reports only settings failures; hosts failures show as warnings.
+func applyErr(st enforce.ApplyStatus) error {
+	if st.ConfigErr != nil {
+		return errors.New(saveErrText(st.ConfigErr))
+	}
+	return nil
+}
+
+func saveErrText(err error) string {
+	if errors.Is(err, config.ErrReadOnly) {
+		return i18n.T("err.settingsReadOnly")
+	}
+	return i18n.T("err.settingsSaveFailed", err.Error())
+}
+
+func (a *App) saveErr(err error) error {
+	if err == nil {
+		return nil
+	}
+	return errors.New(saveErrText(err))
+}
+
+func ruleErr(err error) error {
+	if errors.Is(err, config.ErrDomainHasPath) {
+		return errors.New(i18n.T("err.domainHasPath"))
+	}
+	return errors.New(i18n.T("err.invalidDomain"))
 }

@@ -187,6 +187,10 @@
         <button class="k9-btn green" id="btn-enable" onclick="enableProtection()" data-i18n="dash.btn.enable"></button>
         <button class="k9-btn red" id="btn-disable" onclick="showDisableModal()" style="display:none" data-i18n="dash.btn.disable"></button>
       </div>
+      <div id="settings-warning-bar" class="inactive-bar" style="display:none">
+        <span>&#x26A0;&nbsp;<strong id="settings-warning-text" dir="auto"></strong></span>
+        <button class="k9-btn" id="btn-retry-hosts" onclick="retryHosts()" style="display:none" data-i18n="dash.btn.retry-hosts"></button>
+      </div>
       <!-- Hidden anchors so main.js can still toggle them -->
       <span id="btn-enable-hidden" style="display:none"></span>
       <span id="btn-disable-hidden" style="display:none"></span>
@@ -464,6 +468,10 @@
               <input type="text" id="listTb-0" class="k9-input" data-i18n-placeholder="content.exceptions.placeholder" />
               <button class="k9-btn add-btn" onclick="addToBlocklist()" data-i18n="common.add"></button>
             </div>
+            <label class="exc-sub-opt">
+              <input type="checkbox" id="listSub-0" />
+              <span data-i18n="content.exceptions.include-subdomains"></span>
+            </label>
             <div id="blocklist-items" class="exc-list">
               <span class="muted" data-i18n="content.exceptions.empty"></span>
             </div>
@@ -480,12 +488,17 @@
               <input type="text" id="listTb-1" class="k9-input" data-i18n-placeholder="content.exceptions.placeholder" />
               <button class="k9-btn add-btn" onclick="addToAllowlist()" data-i18n="common.add"></button>
             </div>
+            <label class="exc-sub-opt">
+              <input type="checkbox" id="listSub-1" />
+              <span data-i18n="content.exceptions.include-subdomains"></span>
+            </label>
             <div id="allowlist-items" class="exc-list">
               <span class="muted" data-i18n="content.exceptions.empty"></span>
             </div>
           </div>
         </div>
       </div>
+      <div id="exc-apply-status" class="info-box" style="display:none; margin-top:8px"></div>
 
     </div><!-- /page-exceptions -->
 
@@ -816,6 +829,16 @@
           <input type="checkbox" id="cb-auto-update" checked>
           <span data-i18n="settings.update.auto-label"></span>
         </label>
+      </div>
+
+      <div class="upd-section" style="margin-top:10px">
+        <div class="dash-section-title" style="margin-bottom:6px" data-i18n="settings.diag.title"></div>
+        <table class="k9-tbl" style="max-width:420px">
+          <tbody id="diag-rows"></tbody>
+        </table>
+        <div id="diag-reload" style="display:none;margin-top:6px">
+          <button class="k9-btn" id="btn-reload-settings" onclick="reloadSettings()" data-i18n="settings.diag.reload"></button>
+        </div>
       </div>
 
       <div class="info-box" style="max-width:420px;margin-top:10px" data-i18n="settings.update.note"></div>

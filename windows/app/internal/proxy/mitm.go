@@ -37,16 +37,27 @@ var (
 	leafCache sync.Map // domain -> *tls.Certificate
 )
 
+var caDirOverride string
+
+// SetCADir overrides where the root CA is kept; call before New.
+func SetCADir(dir string) { caDirOverride = dir }
+
+func caDir() string {
+	if caDirOverride != "" {
+		return caDirOverride
+	}
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".k10webprotection")
+}
+
 // CACertPath returns the path to the K10 root CA certificate.
 func CACertPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".k10webprotection", "ca.crt")
+	return filepath.Join(caDir(), "ca.crt")
 }
 
 func initMITM() {
 	mitmOnce.Do(func() {
-		home, _ := os.UserHomeDir()
-		dir := filepath.Join(home, ".k10webprotection")
+		dir := caDir()
 		os.MkdirAll(dir, 0700)
 
 		keyPath := filepath.Join(dir, "ca.key")
@@ -170,7 +181,7 @@ func leafCert(domain string) (*tls.Certificate, error) {
 }
 
 // blockTunnel intercepts an HTTPS CONNECT tunnel and serves the block page over TLS.
-func (p *Proxy) blockTunnel(w http.ResponseWriter, domain string) {
+func (p *Proxy) blockTunnel(w http.ResponseWriter, r *http.Request, domain string, pol *Policy) {
 	hj, ok := w.(http.Hijacker)
 	if !ok {
 		http.Error(w, "Blocked by K10 Web Protection", http.StatusForbidden)
@@ -180,7 +191,8 @@ func (p *Proxy) blockTunnel(w http.ResponseWriter, domain string) {
 	if err != nil {
 		return
 	}
-	defer conn.Close()
+	t := p.track(pol, r, domain, KindBlock, conn)
+	defer p.untrack(t)
 
 	// Accept the tunnel — browser expects 200 before starting TLS
 	conn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
@@ -220,7 +232,7 @@ func (p *Proxy) blockTunnel(w http.ResponseWriter, domain string) {
 //   - Block /setprefs requests (prevents turning SafeSearch off)
 //   - Inject safe=active into all /search query strings
 //   - Forward everything else unchanged
-func (p *Proxy) safeSearchIntercept(w http.ResponseWriter, r *http.Request, host string) {
+func (p *Proxy) safeSearchIntercept(w http.ResponseWriter, r *http.Request, host string, pol *Policy) {
 	hj, ok := w.(http.Hijacker)
 	if !ok {
 		http.Error(w, "Bad Gateway", http.StatusBadGateway)
@@ -230,13 +242,14 @@ func (p *Proxy) safeSearchIntercept(w http.ResponseWriter, r *http.Request, host
 	if err != nil {
 		return
 	}
-	defer clientConn.Close()
+	t := p.track(pol, r, host, KindSafeSearch, clientConn)
+	defer p.untrack(t)
 
 	clientConn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
 
 	if mitmCA == nil {
 		// CA not ready — raw pass-through, SafeSearch not enforceable
-		rawTunnel(clientConn, r.Host)
+		p.rawTunnel(t, clientConn, r.Host)
 		return
 	}
 
@@ -251,11 +264,15 @@ func (p *Proxy) safeSearchIntercept(w http.ResponseWriter, r *http.Request, host
 	}
 	defer tlsBrowser.Close()
 
-	tlsOrigin, err := tls.Dial("tcp", host+":443", &tls.Config{ServerName: host})
-	if err != nil {
+	up, err := p.dial(net.JoinHostPort(host, "443"))
+	if err != nil || !t.add(up) {
 		return
 	}
+	tlsOrigin := tls.Client(up, &tls.Config{ServerName: host})
 	defer tlsOrigin.Close()
+	if err := tlsOrigin.Handshake(); err != nil {
+		return
+	}
 
 	browserBuf := bufio.NewReader(tlsBrowser)
 	originBuf := bufio.NewReader(tlsOrigin)
@@ -314,9 +331,9 @@ func (p *Proxy) safeSearchIntercept(w http.ResponseWriter, r *http.Request, host
 }
 
 // rawTunnel is a dumb TCP pass-through used when MitM is not possible.
-func rawTunnel(conn net.Conn, host string) {
-	dest, err := net.DialTimeout("tcp", host, 10*time.Second)
-	if err != nil {
+func (p *Proxy) rawTunnel(t *tunnel, conn net.Conn, host string) {
+	dest, err := p.dial(host)
+	if err != nil || !t.add(dest) {
 		return
 	}
 	defer dest.Close()

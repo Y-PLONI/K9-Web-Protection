@@ -121,16 +121,15 @@ function notify(msg, type = 'ok') {
 // ── Dashboard ─────────────────────────────────────────────────────────────────
 async function loadDashboard() {
   if (!window.go?.main?.App) return
-  const [s, bl, al, cs] = await Promise.all([
+  const [s, rules, cs] = await Promise.all([
     go().GetStatus(),
-    go().GetBlocklist(),
-    go().GetAllowlist(),
+    go().GetRules(),
     go().GetContentSettings(),
   ])
 
   const l1ok   = s.layer1Active
   const l2ok   = s.proxyRunning
-  const active = l1ok && l2ok
+  const active = l2ok // protection is the proxy; hosts is an extra layer with its own warnings
 
   // ── Header badge ──
   const badge = document.getElementById('k9StatusDot')
@@ -149,8 +148,19 @@ async function loadDashboard() {
   document.getElementById('stat-today').textContent = s.blockedToday.toLocaleString(loc())
   document.getElementById('stat-total').textContent = s.totalBlocked.toLocaleString(loc())
 
-  const allowCount = al?.length ?? 0
-  const blockCount = bl?.userAdded?.length ?? 0
+  const warnBar = document.getElementById('settings-warning-bar')
+  const w = settingsWarnings(s.diagnostics)
+  if (warnBar) {
+    const lines = [...w.settings, ...w.hosts]
+    warnBar.style.display = lines.length ? 'flex' : 'none'
+    if (lines.length) lines.push(t(w.settings.length ? 'toast.settings.warning' : 'toast.hosts.warning'))
+    document.getElementById('settings-warning-text').textContent = lines.join(' · ')
+    const retry = document.getElementById('btn-retry-hosts')
+    if (retry) retry.style.display = w.hosts.length && l2ok ? 'inline-flex' : 'none'
+  }
+
+  const allowCount = rules?.allow?.length ?? 0
+  const blockCount = rules?.block?.length ?? 0
   const excEl = document.getElementById('stat-exceptions')
   if (excEl) excEl.innerHTML =
     `${allowCount} <span style="font-size:9px;color:#888;font-weight:600">${esc(t('dash.exceptions.allow'))}</span>&nbsp;&nbsp;` +
@@ -169,20 +179,20 @@ async function loadDashboard() {
   setText('db-keywords', s.dbKeywords.toLocaleString(loc()))
 
   // ── Protection modules ──
-  const setMod = (dotId, valId, on) => {
+  const setMod = (dotId, valId, on, idle) => {
     const dot = document.getElementById(dotId)
     const val = document.getElementById(valId)
-    if (dot) dot.className = 'prot-dot ' + (on ? 'on' : 'off')
+    if (dot) dot.className = 'prot-dot ' + (on ? 'on' : idle ? 'idle' : 'off')
     if (val) {
-      val.textContent = on ? t('dash.module.active') : t('dash.module.inactive')
-      val.className = 'prot-val ' + (on ? 'active' : 'inactive')
+      val.textContent = on ? t('dash.module.active') : idle ? t('dash.module.notNeeded') : t('dash.module.inactive')
+      val.className = 'prot-val ' + (on ? 'active' : idle ? 'idle' : 'inactive')
     }
   }
   setMod('dot-web-protection', 'mod-web-protection', active)
   setMod('dot-malware',        'mod-malware',        l2ok)
   setMod('dot-safesearch',     'mod-safesearch',     cs.safeSearch !== false)
   setMod('dot-https',          'mod-https',          l2ok)
-  setMod('dot-dns',            'mod-dns',            l1ok)
+  setMod('dot-dns',            'mod-dns',            l1ok, s.layer1Idle)
 
   // ── Top blocked categories bar chart (from topBlocked domain data) ──
   renderTopCategoriesChart(s.topBlocked)
@@ -375,17 +385,31 @@ window.clearBlockedLog = clearBlockedLog
 function verifyProtection() {
   if (!window.go?.main?.App) return
   go().GetStatus().then(s => {
-    const ok = s.layer1Active && s.proxyRunning
+    const ok = s.proxyRunning && (s.layer1Active || s.layer1Idle)
     notify(ok ? t('toast.verify.ok') : t('toast.verify.fail'), ok ? 'ok' : 'err')
   })
 }
 window.verifyProtection = verifyProtection
 
 async function enableProtection() {
-  try { await go().EnableProtection(); notify(t('toast.protection.enabled'), 'ok'); loadDashboard() }
+  try { await go().EnableProtection(); notify(t('toast.protection.enabled'), 'ok') }
   catch (e) { notify(errText(e), 'err') }
+  finally { loadDashboard() }
 }
 window.enableProtection = enableProtection
+
+async function retryHosts() {
+  const btn = document.getElementById('btn-retry-hosts')
+  if (btn) btn.disabled = true
+  try {
+    const ap = await go().RetryHosts()
+    const w = applyWarnings(ap)
+    if (w.length) notify(errText(w.join(' · ')), 'err')
+    else notify(t('toast.hosts.updated'), 'ok')
+  } catch (e) { notify(errText(e), 'err') }
+  finally { if (btn) btn.disabled = false; loadDashboard() }
+}
+window.retryHosts = retryHosts
 
 // ── Disable modal ─────────────────────────────────────────────────────────────
 async function showDisableModal() {
@@ -403,8 +427,12 @@ async function confirmDisable() {
   const pw = document.getElementById('disable-pw').value
   try {
     await go().DisableProtection(pw)
-    closeModal(); notify(t('toast.protection.disabled'), 'ok'); loadDashboard()
-  } catch (e) { notify(errText(e), 'err') }
+    closeModal(); notify(t('toast.protection.disabled'), 'ok')
+  } catch (e) {
+    notify(errText(e), 'err')
+    const s = await go().GetStatus().catch(() => null)
+    if (s && !s.proxyRunning) closeModal() // turned off, only the cleanup failed
+  } finally { loadDashboard() }
 }
 window.confirmDisable = confirmDisable
 
@@ -502,51 +530,107 @@ window.saveCategories = saveCategories
 
 // ── Exceptions ────────────────────────────────────────────────────────────────
 async function loadExceptions() {
-  const bl = await go().GetBlocklist()
-  renderList('blocklist-items', bl.userAdded, removeFromBlocklist, 'red')
-  const al = await go().GetAllowlist()
-  renderList('allowlist-items', al, removeFromAllowlist, 'green')
+  renderRules(await go().GetRules())
 }
 
-function renderList(id, items, removeFn, color) {
+function renderRules(v) {
+  renderRuleList('blocklist-items', v?.block, 'block', v?.display)
+  renderRuleList('allowlist-items', v?.allow, 'allow', v?.display)
+  const el = document.getElementById('exc-apply-status')
+  if (!el) return
+  const lines = [v?.notice, ...applyWarnings(v?.apply), v?.apply?.hostsInfo].filter(Boolean)
+  if (v?.apply?.hostsPartial) lines.push(t('content.exceptions.hosts-partial'))
+  el.style.display = lines.length ? 'block' : 'none'
+  el.innerHTML = lines.map(l => `<div dir="auto">${esc(l)}</div>`).join('')
+}
+
+function renderRuleList(id, rules, kind, display) {
   const el = document.getElementById(id)
-  if (!items?.length) {
+  if (!rules?.length) {
     el.innerHTML = `<span style="color:#888; font-style:italic">${esc(t('content.exceptions.empty'))}</span>`
     return
   }
-  el.innerHTML = items.map(item =>
+  el.innerHTML = rules.map(r =>
     `<div class="exc-item" style="font-size:12px; padding:2px 0; display:flex; align-items:center; gap:6px">
-       <span style="color:${color === 'red' ? '#cc2222' : '#228B22'}; font-weight:bold">&#x29B8;</span>
-       <span class="exc-domain" style="color:#003E7E">${esc(item)}</span>
-       <a href="#" style="color:#cc2222; font-weight:bold; font-size:14px; text-decoration:none; margin-inline-start:4px"
-          onclick="(${removeFn.name})('${esc(item).replace(/'/g,"\\'")}'); return false;">&times;</a>
+       <span style="color:${kind === 'block' ? '#cc2222' : '#228B22'}; font-weight:bold">&#x29B8;</span>
+       <bdi class="exc-domain" style="color:#003E7E">${esc(display?.[r.domain] || r.domain)}</bdi>
+       ${r.includeSubdomains ? `<span class="exc-badge">${esc(t('content.exceptions.badge-subdomains'))}</span>` : ''}
+       <a href="#" class="exc-remove" data-kind="${kind}" data-domain="${esc(r.domain)}" title="${esc(t('content.exceptions.remove'))}"
+          style="color:#cc2222; font-weight:bold; font-size:14px; text-decoration:none; margin-inline-start:auto">&times;</a>
      </div>`
   ).join('')
+}
+
+function applyWarnings(ap) {
+  return [ap?.configError, ap?.hostsError].filter(Boolean)
+}
+
+// The raw load error stays in Diagnostics; the bar shows a translated line.
+function settingsWarnings(d) {
+  const ap = d?.lastApply || {}
+  return {
+    settings: [d?.loadError && t('dash.warn.load-error'), ap.configError].filter(Boolean),
+    hosts: [ap.hostsError].filter(Boolean),
+  }
+}
+
+// Success only when every layer applied the change.
+function notifyApplied(v, okKey) {
+  const w = [v?.notice, ...applyWarnings(v?.apply)].filter(Boolean)
+  if (w.length) notify(errText(w.join(' · ')), 'err')
+  else notify([t(okKey), v?.apply?.hostsInfo].filter(Boolean).join(' '), 'ok')
+}
+
+async function askPassword(titleKey) {
+  return (await go().HasPassword()) ? requirePassword(t(titleKey)) : ''
 }
 
 async function addToBlocklist() {
   const input = document.getElementById('listTb-0')
   const val = input.value.trim()
   if (!val) return
-  try { await go().AddToBlocklist(val); input.value = ''; loadExceptions(); notify(t('toast.blocklist.added')) }
-  catch (e) { notify(errText(e), 'err') }
+  const sub = document.getElementById('listSub-0')?.checked === true
+  try {
+    const v = await go().AddBlockRule(val, sub)
+    input.value = ''
+    document.getElementById('listSub-0').checked = false
+    renderRules(v); notifyApplied(v, 'toast.blocklist.added')
+  } catch (e) { notify(errText(e), 'err') }
 }
-async function removeFromBlocklist(domain) {
-  await go().RemoveFromBlocklist(domain); loadExceptions(); notify(t('toast.entry.removed'))
+async function removeBlockRule(domain) {
+  const pw = await askPassword('modal.require.remove-block')
+  if (pw === null) return
+  try { const v = await go().RemoveBlockRule(pw, domain); renderRules(v); notifyApplied(v, 'toast.entry.removed') }
+  catch (e) { notify(errText(e), 'err') }
 }
 async function addToAllowlist() {
   const input = document.getElementById('listTb-1')
   const val = input.value.trim()
   if (!val) return
-  try { await go().AddToAllowlist(val); input.value = ''; loadExceptions(); notify(t('toast.allowlist.added')) }
-  catch (e) { notify(errText(e), 'err') }
+  const sub = document.getElementById('listSub-1')?.checked === true
+  const pw = await askPassword('modal.require.add-allow')
+  if (pw === null) return
+  try {
+    const v = await go().AddAllowRule(pw, val, sub)
+    input.value = ''
+    document.getElementById('listSub-1').checked = false
+    renderRules(v); notifyApplied(v, 'toast.allowlist.added')
+  } catch (e) { notify(errText(e), 'err') }
 }
-async function removeFromAllowlist(domain) {
-  await go().RemoveFromAllowlist(domain); loadExceptions(); notify(t('toast.entry.removed'))
+async function removeAllowRule(domain) {
+  try { const v = await go().RemoveAllowRule(domain); renderRules(v); notifyApplied(v, 'toast.entry.removed') }
+  catch (e) { notify(errText(e), 'err') }
 }
 window.addToBlocklist = addToBlocklist
 window.addToAllowlist = addToAllowlist
 
+document.getElementById('page-exceptions')?.addEventListener('click', e => {
+  const a = e.target.closest?.('.exc-remove')
+  if (!a) return
+  e.preventDefault()
+  if (a.dataset.kind === 'block') removeBlockRule(a.dataset.domain)
+  else removeAllowRule(a.dataset.domain)
+})
 document.getElementById('listTb-0')?.addEventListener('keydown', e => { if (e.key === 'Enter') addToBlocklist() })
 document.getElementById('listTb-1')?.addEventListener('keydown', e => { if (e.key === 'Enter') addToAllowlist() })
 
@@ -595,11 +679,12 @@ async function loadSafeSearch() {
 
 async function saveSafeSearch() {
   const on = document.getElementById('cb-safesearch').checked
+  const pw = on ? '' : await askPassword('modal.require.safesearch-off')
+  if (pw === null) { loadSafeSearch(); return }
   try {
-    const s = await go().GetContentSettings()
-    await go().SaveContentSettings('', { ...s, safeSearch: on })
+    await go().SetSafeSearch(pw, on)
     notify(t('toast.safesearch.saved'), 'ok')
-  } catch (e) { notify(errText(e), 'err') }
+  } catch (e) { notify(errText(e), 'err'); loadSafeSearch() }
 }
 window.saveSafeSearch = saveSafeSearch
 
@@ -970,7 +1055,45 @@ async function loadUpdate() {
     urls:     s.dbUrls.toLocaleString(loc()),
     keywords: s.dbKeywords.toLocaleString(loc()),
   })
+  renderDiagnostics(s.diagnostics)
 }
+
+function renderDiagnostics(d) {
+  const body = document.getElementById('diag-rows')
+  if (!body || !d) return
+  const ltr = v => `<bdi class="ltr-text">${esc(v)}</bdi>`
+  const text = v => `<span dir="auto">${esc(v)}</span>`
+  const ap = d.lastApply || {}
+  let hosts = ap.hostsError || (ap.hostsApplied ? t('settings.diag.hosts.ok') : (ap.hostsInfo || t('settings.diag.hosts.off')))
+  if (ap.hostsApplied && ap.hostsPartial) hosts += ' · ' + t('content.exceptions.hosts-partial')
+  const skipped = [...(d.skippedLegacy || []), ...(d.skippedRules || [])]
+  const rows = [
+    ['settings.diag.path', ltr(d.settingsPath)],
+    ['settings.diag.source', text(t('settings.diag.source.' + d.settingsSource))],
+    d.migratedFrom && ['settings.diag.migrated-from', ltr(d.migratedFrom)],
+    d.backupPath && ['settings.diag.backup', ltr(d.backupPath)],
+    d.loadError && ['settings.diag.load-error', ltr(d.loadError)],
+    d.loadError && ['settings.diag.recover', text(t('settings.diag.restore-hint'))],
+    ['settings.diag.saving', text(d.readOnly ? t('settings.diag.read-only') : (ap.configError || t('settings.diag.ok')))],
+    skipped.length && ['settings.diag.skipped', skipped.map(ltr).join(', ')],
+    ['settings.diag.hosts', text(hosts)],
+  ].filter(Boolean)
+  let html = rows.map(([key, val]) => `<tr><td class="lbl">${esc(t(key))}</td><td>${val}</td></tr>`).join('')
+  if (ap.closedTunnels > 0) {
+    html += `<tr><td colspan="2" dir="auto">${esc(t('settings.diag.tunnels', { count: ap.closedTunnels.toLocaleString(loc()) }))}</td></tr>`
+  }
+  body.innerHTML = html
+  const reload = document.getElementById('diag-reload')
+  if (reload) reload.style.display = d.readOnly ? 'block' : 'none'
+}
+async function reloadSettings() {
+  const btn = document.getElementById('btn-reload-settings')
+  if (btn) btn.disabled = true
+  try { renderDiagnostics(await go().ReloadSettings()); notify(t('toast.settings.reloaded'), 'ok') }
+  catch (e) { notify(errText(e), 'err') }
+  finally { if (btn) btn.disabled = false; loadUpdate() }
+}
+window.reloadSettings = reloadSettings
 function checkForUpdate() {
   notify(t('toast.update.stub'), 'ok')
 }
@@ -990,7 +1113,7 @@ window.showUninstall = showUninstall
 // ── Utility ───────────────────────────────────────────────────────────────────
 // FSI…PDI so an error mixing Hebrew, Latin identifiers and punctuation stays intact in an RTL container.
 function errText(e) {
-  return '\u2066' + String(e).replace(/^Error: /, '') + '\u2069'
+  return '\u2068' + String(e).replace(/^Error: /, '') + '\u2069'
 }
 
 function esc(s) {
@@ -1000,6 +1123,7 @@ function esc(s) {
 // ── Generic password confirm modal ────────────────────────────────────────────
 let _pwConfirmCancel = null
 function requirePassword(title) {
+  if (_pwConfirmCancel) return Promise.resolve(null) // a prompt is already open
   const heading = title || t('modal.pw.title')
   return new Promise(resolve => {
     document.getElementById('pwConfirmTitle').textContent = heading

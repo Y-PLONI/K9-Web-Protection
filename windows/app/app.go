@@ -104,6 +104,9 @@ func (a *App) startup(ctx context.Context) {
 		wailsruntime.WindowShow(a.ctx)
 		wailsruntime.WindowUnminimise(a.ctx)
 	}, func() {
+		// the quit modal lives in the same window; it must be shown before the event reaches it
+		wailsruntime.WindowShow(a.ctx)
+		wailsruntime.WindowUnminimise(a.ctx)
 		wailsruntime.EventsEmit(a.ctx, "quit-requested")
 	})
 	a.cfg = config.Load()

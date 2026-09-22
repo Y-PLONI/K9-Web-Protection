@@ -74,7 +74,7 @@ type Config struct {
 	TimeRestrictions TimeRestrictions `json:"timeRestrictions"`
 
 	// System
-	Language     string `json:"language"` // "he" | "en"
+	Language     string `json:"language"` // "he" | "en"; empty = not chosen yet
 	PasswordHash string `json:"passwordHash"`
 	ProxyPort    int    `json:"proxyPort"`
 	AutoStart    bool   `json:"autoStart"`
@@ -86,8 +86,13 @@ func configDir() string {
 	return filepath.Join(home, ".k10webprotection")
 }
 
-// legacyBlockedMessage is the pre-i18n English default, migrated to the localized one.
+// legacyBlockedMessage is the pre-i18n English default, still recognised as "untouched".
 const legacyBlockedMessage = "This website has been blocked to help you stay focused and protected."
+
+// isDefaultBlockedMessage reports whether msg is still a default rather than a user's own text.
+func isDefaultBlockedMessage(msg, lang string) bool {
+	return msg == "" || msg == legacyBlockedMessage || msg == i18n.TIn(lang, "config.blockedMessageDefault")
+}
 
 func Load() *Config {
 	dir := configDir()
@@ -96,7 +101,7 @@ func Load() *Config {
 
 	c := &Config{
 		path:              path,
-		Language:          i18n.DefaultLang,
+		Language:          "",
 		ProxyPort:         8080,
 		AutoStart:         true,
 		BlockAdultContent: true,
@@ -113,12 +118,12 @@ func Load() *Config {
 		c.path = path
 	}
 	// Load is the single place that activates the configured language.
-	if c.Language == "" {
-		c.Language = i18n.DefaultLang
-	}
+	// Empty stays empty — the frontend detects the environment and persists it via SetLanguage.
 	i18n.SetLang(c.Language)
-	c.Language = i18n.Lang() // keep the stored code in step with what actually renders
-	if c.BlockedMessage == "" || c.BlockedMessage == legacyBlockedMessage {
+	if c.Language != "" {
+		c.Language = i18n.Lang() // normalise an unrecognised stored code
+	}
+	if isDefaultBlockedMessage(c.BlockedMessage, c.Language) {
 		c.BlockedMessage = i18n.T("config.blockedMessageDefault")
 	}
 	if len(c.FocusSites) == 0 {
@@ -171,6 +176,20 @@ func (c *Config) Save() error {
 		return err
 	}
 	return os.WriteFile(c.path, data, 0600)
+}
+
+// ── Language ──────────────────────────────────────────────────────────────────
+
+// SetLanguage records the chosen language and moves a still-default blocked
+// message to the new language's default. A customised message is left alone.
+// Callers must validate lang first, then Save.
+func (c *Config) SetLanguage(lang string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if isDefaultBlockedMessage(c.BlockedMessage, c.Language) {
+		c.BlockedMessage = i18n.TIn(lang, "config.blockedMessageDefault")
+	}
+	c.Language = lang
 }
 
 // ── Focus Mode ────────────────────────────────────────────────────────────────

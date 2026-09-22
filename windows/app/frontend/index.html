@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="he" dir="rtl">
+<html lang="en" dir="ltr">
 <head>
   <meta charset="utf-8" />
   <script>window.APP_PLATFORM='win'</script>
-  <!-- Pre-paint language hint; key mirrors STORAGE_KEY in src/i18n/index.js. -->
-  <script>try{var l=localStorage.getItem('k10.lang');if(l==='en'||l==='he'){document.documentElement.lang=l;document.documentElement.dir=l==='he'?'rtl':'ltr'}}catch(e){}</script>
+  <!-- Pre-paint: stored choice, else OS language, else English; mirrors src/i18n/index.js. -->
+  <script>try{var l=null;try{l=localStorage.getItem('k10.lang')}catch(e){}if(l!=='en'&&l!=='he'){var d=String(navigator.language||'').toLowerCase().split('-')[0];l=(d==='he'||d==='iw')?'he':'en'}document.documentElement.lang=l;document.documentElement.dir=l==='he'?'rtl':'ltr'}catch(e){}</script>
   <title data-i18n="nav.header.title"></title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

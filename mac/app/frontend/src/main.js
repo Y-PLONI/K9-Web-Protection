@@ -653,15 +653,23 @@ function syncLanguageSelect() {
 const LANG_RELOAD_KEY = 'k10.langReload'
 
 async function reconcileLanguage() {
-  let lang
+  let app, lang
   try {
-    const app = await whenBackendReady()
+    app = await whenBackendReady()
     lang = await app.GetLanguage()
   } catch (e) {
     console.warn('[i18n] GetLanguage unavailable — keeping the locally hinted language:', e)
     return
   }
-  if (!lang || lang === getLang()) {
+  // Empty means the user has never chosen: persist what the environment resolved to, no reload needed.
+  if (!lang) {
+    try { await app.SetLanguage(getLang()) }
+    catch (e) { console.warn('[i18n] could not persist the detected language:', e) }
+    try { sessionStorage.removeItem(LANG_RELOAD_KEY) } catch (e) { /* storage unavailable */ }
+    syncLanguageSelect()
+    return
+  }
+  if (lang === getLang()) {
     try { sessionStorage.removeItem(LANG_RELOAD_KEY) } catch (e) { /* storage unavailable */ }
     syncLanguageSelect()
     return

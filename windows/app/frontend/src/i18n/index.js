@@ -5,10 +5,20 @@ import he from './he.json'
 
 const LOCALES = { en, he }
 const STORAGE_KEY = 'k10.lang'
-const DEFAULT_LANG = 'he'
+const FALLBACK_LANG = 'en'
 const RTL_LANGS = ['he']
 
-let current = DEFAULT_LANG
+// In the Wails WebView navigator.language reflects the OS language; "iw" is the legacy Hebrew code.
+export function detectLang() {
+  let tag = ''
+  try {
+    tag = String(navigator.language || '')
+  } catch (e) { /* navigator unavailable */ }
+  const base = tag.toLowerCase().split('-')[0]
+  return base === 'he' || base === 'iw' ? 'he' : FALLBACK_LANG
+}
+
+let current = FALLBACK_LANG
 
 function platformSuffix() {
   return window.APP_PLATFORM === 'win' ? 'win' : 'mac'
@@ -45,7 +55,7 @@ export function getLang() {
 }
 
 export function setLang(lang) {
-  current = Object.prototype.hasOwnProperty.call(LOCALES, lang) ? lang : DEFAULT_LANG
+  current = Object.prototype.hasOwnProperty.call(LOCALES, lang) ? lang : FALLBACK_LANG
   try {
     localStorage.setItem(STORAGE_KEY, current)
   } catch (e) { /* storage unavailable */ }
@@ -62,7 +72,8 @@ export function initI18n() {
   try {
     stored = localStorage.getItem(STORAGE_KEY)
   } catch (e) { /* storage unavailable */ }
-  return setLang(stored && Object.prototype.hasOwnProperty.call(LOCALES, stored) ? stored : DEFAULT_LANG)
+  // An explicit stored choice always wins over the environment.
+  return setLang(stored && Object.prototype.hasOwnProperty.call(LOCALES, stored) ? stored : detectLang())
 }
 
 const ATTR_BINDINGS = [

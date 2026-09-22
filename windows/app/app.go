@@ -335,8 +335,8 @@ func (a *App) SaveContentSettings(password string, s ContentSettings) error {
 
 // ── Language ──────────────────────────────────────────────────────────────────
 
-// GetLanguage returns the language the backend is currently rendering in.
-func (a *App) GetLanguage() string { return i18n.Lang() }
+// GetLanguage returns the stored language choice; empty means none has been made yet.
+func (a *App) GetLanguage() string { return a.cfg.Language }
 
 // SetLanguage switches the backend language and persists it.
 func (a *App) SetLanguage(lang string) error {
@@ -347,7 +347,7 @@ func (a *App) SetLanguage(lang string) error {
 		return errors.New(i18n.T("err.unsupportedLanguage"))
 	}
 	i18n.SetLang(lang)
-	a.cfg.Language = lang
+	a.cfg.SetLanguage(lang)
 	return a.cfg.Save()
 }
 

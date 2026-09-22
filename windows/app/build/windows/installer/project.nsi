@@ -63,14 +63,14 @@ LangString K10_MSG_UN_CLEANUP  ${LANG_ENGLISH} "Cleaning up system integration..
 LangString K10_MSG_UN_REMOVING ${LANG_ENGLISH} "Removing files..."
 
 LangString K10_FINISH_RUN      ${LANG_HEBREW} "הפעלת K10 Web Protection"
-LangString K10_MSG_STOPPING    ${LANG_HEBREW} "עוצר מופע קיים..."
-LangString K10_MSG_COPYING     ${LANG_HEBREW} "מעתיק קבצים..."
-LangString K10_MSG_SHORTCUTS   ${LANG_HEBREW} "יוצר קיצורי דרך..."
-LangString K10_MSG_SYSINT      ${LANG_HEBREW} "מגדיר שילוב מערכת..."
+LangString K10_MSG_STOPPING    ${LANG_HEBREW} "עצירת מופע קיים..."
+LangString K10_MSG_COPYING     ${LANG_HEBREW} "העתקת קבצים..."
+LangString K10_MSG_SHORTCUTS   ${LANG_HEBREW} "יצירת קיצורי דרך..."
+LangString K10_MSG_SYSINT      ${LANG_HEBREW} "הגדרת שילוב מערכת..."
 LangString K10_MSG_SYSINT_WARN ${LANG_HEBREW} "אזהרה: שלב שילוב המערכת החזיר $0"
-LangString K10_MSG_WATCHDOG    ${LANG_HEBREW} "מפעיל את ה-watchdog..."
-LangString K10_MSG_UN_CLEANUP  ${LANG_HEBREW} "מנקה שילוב מערכת..."
-LangString K10_MSG_UN_REMOVING ${LANG_HEBREW} "מסיר קבצים..."
+LangString K10_MSG_WATCHDOG    ${LANG_HEBREW} "הפעלת ה-watchdog..."
+LangString K10_MSG_UN_CLEANUP  ${LANG_HEBREW} "ניקוי שילוב מערכת..."
+LangString K10_MSG_UN_REMOVING ${LANG_HEBREW} "הסרת קבצים..."
 
 ; ── Version info embedded in the .exe ─────────────────────────────────────────
 VIProductVersion "${VERSION}.0"

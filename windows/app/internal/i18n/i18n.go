@@ -7,7 +7,7 @@ import (
 )
 
 // DefaultLang is used when no language has been configured.
-const DefaultLang = "he"
+const DefaultLang = "en"
 
 // FallbackLang always exists in the catalog and is used for missing keys.
 const FallbackLang = "en"
@@ -51,7 +51,11 @@ func T(key string, args ...any) string {
 	mu.RLock()
 	lang := current
 	mu.RUnlock()
+	return TIn(lang, key, args...)
+}
 
+// TIn is T for an explicitly named language, regardless of the active one.
+func TIn(lang, key string, args ...any) string {
 	s, ok := catalog[lang][key]
 	if !ok || s == "" {
 		s, ok = catalog[FallbackLang][key]
@@ -130,7 +134,7 @@ var catalog = map[string]map[string]string{
 		"err.focusModeActive":          "מצב מיקוד פעיל — נותרו %d דקות",
 		"err.disableDelayActive":       "השהיית הביטול פעילה — נותרו %.0f שעות",
 		"err.noDelayConfigured":        "לא הוגדרה השהיה",
-		"err.invalidDomain":            "הדומיין לא תקין",
+		"err.invalidDomain":            "האתר אינו תקין",
 		"err.emptyKeyword":             "מילת המפתח ריקה",
 		"err.portRange":                "מספר הפורט חייב להיות בין 1024 ל-65535",
 		"err.unsupportedLanguage":      "השפה אינה נתמכת",
@@ -138,10 +142,10 @@ var catalog = map[string]map[string]string{
 		"err.prepareUninstallScript":   "לא ניתן להכין את סקריפט הסרת ההתקנה",
 		"err.uninstallNeedsAdmin":      "נדרשות הרשאות מנהל מערכת כדי להשלים את הסרת ההתקנה",
 		"err.prepareInstallScript":     "לא ניתן להכין את סקריפט ההתקנה",
-		"err.caInstallNeedsAdmin":      "נדרשת גישת מנהל מערכת כדי להתקין את תעודת ה-CA",
-		"err.caCertNotFound":           "תעודת ה-CA לא נמצאה — יש להפעיל את ההגנה תחילה",
-		"err.proxyFailedToStart":       "הפעלת הפרוקסי נכשלה",
-		"err.proxyStartTimeout":        "הפרוקסי לא עלה בפורט %d תוך 5 שניות",
+		"err.caInstallNeedsAdmin":      "נדרשת גישת מנהל מערכת כדי להתקין את רשות האישורים (CA)",
+		"err.caCertNotFound":           "רשות האישורים (CA) לא נמצאה — יש להפעיל את ההגנה תחילה",
+		"err.proxyFailedToStart":       "הפעלת שרת המתווך נכשלה",
+		"err.proxyStartTimeout":        "שרת המתווך לא עלה בפורט %d תוך 5 שניות",
 
 		// ── Defaults stored in config.json ────────────────────────────────
 		"config.blockedMessageDefault": "האתר הזה נחסם כדי לשמור על הריכוז וההגנה שלך.",
@@ -152,11 +156,11 @@ var catalog = map[string]map[string]string{
 		"block.chip":        "הגישה נחסמה",
 		"block.heading":     "האתר הזה נחסם",
 		"block.siteLabel":   "אתר:",
-		"block.message": "האתר הזה נחסם על ידי K10 Web Protection מכיוון שהוא עשוי להכיל תוכן למבוגרים בלבד, תוכנה זדונית, ניסיונות פישינג, או חומר אחר שמפר את מדיניות הסינון שהוגדרה אצלך.",
+		"block.message": "האתר הזה נחסם על ידי K10 Web Protection מכיוון שהוא עשוי להכיל תוכן למבוגרים בלבד, תוכנה זדונית, ניסיונות התחזות, או חומר אחר שמפר את מדיניות הסינון שהוגדרה אצלך.",
 		"block.chipFiltered": "מסונן על ידי K10 Web Protection",
 		"block.chipContact":  "יש לפנות למנהל המערכת כדי לבקש גישה",
 		// block.copyright is an HTML fragment by design — do not escape it.
-		"block.copyright":    "זכויות יוצרים &copy; 2024&ndash;2026 K10WebProtection &mdash; כל הזכויות שמורות.",
+		"block.copyright":    "&copy; 2024&ndash;2026 K10WebProtection &mdash; כל הזכויות שמורות.",
 
 		// -- macOS-only errors ---------------------------------------------
 		"err.invalidCertFormat":  "פורמט התעודה אינו תקין",
@@ -164,10 +168,10 @@ var catalog = map[string]map[string]string{
 		"err.openProfileFailed":  "פתיחת מתקין הפרופיל נכשלה",
 
 		// -- macOS configuration profile (.mobileconfig), shown by System Settings --
-		"profile.caDisplayName": "רשות האישורים של K10 Web Protection",
-		"profile.caDescription": "רשות אישורים שורש של K10 Web Protection",
+		"profile.caDisplayName": "רשות האישורים (CA) של K10 Web Protection",
+		"profile.caDescription": "רשות האישורים (CA) השורשית של K10 Web Protection",
 		"profile.organization":  "K10 Web Protection",
 		"profile.displayName":   "תעודת K10 Web Protection",
-		"profile.description":   "מתקין את רשות האישורים של K10 Web Protection כדי שדפי חסימת HTTPS יוצגו כראוי בכל הדפדפנים.",
+		"profile.description":   "מתקין את רשות האישורים (CA) של K10 Web Protection כדי שדפי חסימת HTTPS יוצגו כראוי בכל הדפדפנים.",
 	},
 }

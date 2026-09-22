@@ -16,14 +16,15 @@ import (
 	"syscall"
 	"time"
 
-	"golang.org/x/crypto/bcrypt"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
+	"golang.org/x/crypto/bcrypt"
 
 	"k10webprotection/internal/config"
 	"k10webprotection/internal/database"
 	"k10webprotection/internal/hosts"
 	"k10webprotection/internal/i18n"
 	"k10webprotection/internal/proxy"
+	"k10webprotection/internal/tray"
 )
 
 // ── Types exposed to frontend ─────────────────────────────────────────────────
@@ -78,10 +79,10 @@ type FocusModeStatus struct {
 }
 
 type DisableDelayStatus struct {
-	DelayHours      int  `json:"delayHours"`
-	RequestPending  bool `json:"requestPending"`
-	ReadyToDisable  bool `json:"readyToDisable"`
-	RemainingSeconds int `json:"remainingSeconds"`
+	DelayHours       int  `json:"delayHours"`
+	RequestPending   bool `json:"requestPending"`
+	ReadyToDisable   bool `json:"readyToDisable"`
+	RemainingSeconds int  `json:"remainingSeconds"`
 }
 
 // ── App ───────────────────────────────────────────────────────────────────────
@@ -99,6 +100,12 @@ func NewApp() *App { return &App{} }
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	registerShutdownObserver()
+	tray.Run(ctx, func() {
+		wailsruntime.WindowShow(a.ctx)
+		wailsruntime.WindowUnminimise(a.ctx)
+	}, func() {
+		wailsruntime.EventsEmit(a.ctx, "quit-requested")
+	})
 	a.cfg = config.Load()
 	a.proxy = proxy.New(a.cfg, func(domain string) {
 		cat := database.DB.CategoryFor(domain)
@@ -123,6 +130,7 @@ func (a *App) startup(ctx context.Context) {
 		sigs := make(chan os.Signal, 1)
 		signal.Notify(sigs, syscall.SIGTERM, syscall.SIGINT)
 		for range sigs {
+			tray.Stop()
 			a.setSystemProxy(false)
 			a.proxy.Stop()
 			atomic.StoreInt32(&a.proxyRunning, 0)
@@ -133,6 +141,7 @@ func (a *App) startup(ctx context.Context) {
 }
 
 func (a *App) shutdown(_ context.Context) {
+	tray.Stop()
 	a.setSystemProxy(false)
 	a.proxy.Stop()
 	a.cfg.Save()
@@ -562,6 +571,7 @@ Remove-Item -Path $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyConti
 
 	go func() {
 		time.Sleep(400 * time.Millisecond)
+		atomic.StoreInt32(&a.quitAuth, 1)
 		wailsruntime.Quit(a.ctx)
 	}()
 	return nil

@@ -273,7 +273,8 @@ async function renderLevelCategoryLists() {
       .map(id => `<span class="cat-item">${esc(t('cat.' + id))}</span>`)
       .join('\n')
   })
-  applyI18n(document.getElementById('page-categories') || document)
+  const catPage = document.getElementById('page-categories')
+  if (catPage) applyI18n(catPage)
 }
 
 function domainToCategory(domain) {
@@ -321,7 +322,6 @@ function renderTopCategoriesChart(topBlocked) {
       <span class="dash-bar-val">${count}</span>
     </div>`
   }).join('')
-  applyI18n(el)
 }
 
 function fmtTime(iso) {
@@ -362,14 +362,13 @@ function renderRecentActivity(topBlocked) {
       <span class="dash-recent-cat ${catClass(e)}">${esc(t('cat.' + entryCategory(e)))}</span>
     </div>`
   ).join('')
-  applyI18n(el)
 }
 
 async function clearBlockedLog() {
   try {
     await go().ClearStats()
     loadDashboard()
-  } catch (e) { notify(String(e), 'err') }
+  } catch (e) { notify(errText(e), 'err') }
 }
 window.clearBlockedLog = clearBlockedLog
 
@@ -384,7 +383,7 @@ window.verifyProtection = verifyProtection
 
 async function enableProtection() {
   try { await go().EnableProtection(); notify(t('toast.protection.enabled'), 'ok'); loadDashboard() }
-  catch (e) { notify(String(e), 'err') }
+  catch (e) { notify(errText(e), 'err') }
 }
 window.enableProtection = enableProtection
 
@@ -405,7 +404,7 @@ async function confirmDisable() {
   try {
     await go().DisableProtection(pw)
     closeModal(); notify(t('toast.protection.disabled'), 'ok'); loadDashboard()
-  } catch (e) { notify(String(e), 'err') }
+  } catch (e) { notify(errText(e), 'err') }
 }
 window.confirmDisable = confirmDisable
 
@@ -427,7 +426,6 @@ async function loadActivity() {
       <span>${e.count}</span>
     </div>`)
     .join('')
-  applyI18n(container)
 }
 
 async function loadCategories() {
@@ -480,7 +478,7 @@ async function saveCategories() {
       await go().SetFilterLevel(level)
       notify(t('toast.categories.saved'), 'ok')
       loadDashboard()
-    } catch (e) { notify(String(e), 'err') }
+    } catch (e) { notify(errText(e), 'err') }
     return
   }
 
@@ -498,7 +496,7 @@ async function saveCategories() {
     await go().SaveContentSettings(pw, { filterLevel: level, blockAdultContent, blockYouTube, safeSearch, blockImageSearch })
     notify(t('toast.categories.saved'), 'ok')
     loadDashboard()
-  } catch (e) { notify(String(e), 'err') }
+  } catch (e) { notify(errText(e), 'err') }
 }
 window.saveCategories = saveCategories
 
@@ -520,11 +518,10 @@ function renderList(id, items, removeFn, color) {
     `<div class="exc-item" style="font-size:12px; padding:2px 0; display:flex; align-items:center; gap:6px">
        <span style="color:${color === 'red' ? '#cc2222' : '#228B22'}; font-weight:bold">&#x29B8;</span>
        <span class="exc-domain" style="color:#003E7E">${esc(item)}</span>
-       <a href="#" style="color:#cc2222; font-weight:bold; font-size:14px; text-decoration:none; margin-left:4px"
+       <a href="#" style="color:#cc2222; font-weight:bold; font-size:14px; text-decoration:none; margin-inline-start:4px"
           onclick="(${removeFn.name})('${esc(item).replace(/'/g,"\\'")}'); return false;">&times;</a>
      </div>`
   ).join('')
-  applyI18n(el)
 }
 
 async function addToBlocklist() {
@@ -532,7 +529,7 @@ async function addToBlocklist() {
   const val = input.value.trim()
   if (!val) return
   try { await go().AddToBlocklist(val); input.value = ''; loadExceptions(); notify(t('toast.blocklist.added')) }
-  catch (e) { notify(String(e), 'err') }
+  catch (e) { notify(errText(e), 'err') }
 }
 async function removeFromBlocklist(domain) {
   await go().RemoveFromBlocklist(domain); loadExceptions(); notify(t('toast.entry.removed'))
@@ -542,7 +539,7 @@ async function addToAllowlist() {
   const val = input.value.trim()
   if (!val) return
   try { await go().AddToAllowlist(val); input.value = ''; loadExceptions(); notify(t('toast.allowlist.added')) }
-  catch (e) { notify(String(e), 'err') }
+  catch (e) { notify(errText(e), 'err') }
 }
 async function removeFromAllowlist(domain) {
   await go().RemoveFromAllowlist(domain); loadExceptions(); notify(t('toast.entry.removed'))
@@ -550,8 +547,8 @@ async function removeFromAllowlist(domain) {
 window.addToBlocklist = addToBlocklist
 window.addToAllowlist = addToAllowlist
 
-document.getElementById('listTb-0').addEventListener('keydown', e => { if (e.key === 'Enter') addToBlocklist() })
-document.getElementById('listTb-1').addEventListener('keydown', e => { if (e.key === 'Enter') addToAllowlist() })
+document.getElementById('listTb-0')?.addEventListener('keydown', e => { if (e.key === 'Enter') addToBlocklist() })
+document.getElementById('listTb-1')?.addEventListener('keydown', e => { if (e.key === 'Enter') addToAllowlist() })
 
 // ── Keywords ──────────────────────────────────────────────────────────────────
 async function loadKeywords() {
@@ -567,11 +564,10 @@ async function loadKeywords() {
     `<div style="font-size:12px; padding:2px 0; display:flex; align-items:center; gap:6px">
        <span style="color:#cc6600; font-weight:bold">${esc(t('common.glyph.list-bullet'))}</span>
        <span class="ltr-text">${esc(kw)}</span>
-       <a href="#" style="color:#cc2222; font-weight:bold; font-size:14px; text-decoration:none; margin-left:4px"
+       <a href="#" style="color:#cc2222; font-weight:bold; font-size:14px; text-decoration:none; margin-inline-start:4px"
           onclick="removeKeyword('${esc(kw).replace(/'/g,"\\'")}'); return false;">&times;</a>
      </div>`
   ).join('')
-  applyI18n(el)
 }
 
 async function addKeyword() {
@@ -579,7 +575,7 @@ async function addKeyword() {
   const val = input.value.trim()
   if (!val) return
   try { await go().AddKeyword(val); input.value = ''; loadKeywords(); notify(t('toast.keyword.added')) }
-  catch (e) { notify(String(e), 'err') }
+  catch (e) { notify(errText(e), 'err') }
 }
 async function removeKeyword(kw) {
   await go().RemoveKeyword(kw); loadKeywords(); notify(t('toast.keyword.removed'))
@@ -588,7 +584,7 @@ async function saveKeywords() { notify(t('toast.keywords.auto-saved'), 'ok') }
 window.addKeyword = addKeyword
 window.removeKeyword = removeKeyword
 window.saveKeywords = saveKeywords
-document.getElementById('kw-input').addEventListener('keydown', e => { if (e.key === 'Enter') addKeyword() })
+document.getElementById('kw-input')?.addEventListener('keydown', e => { if (e.key === 'Enter') addKeyword() })
 
 // ── Safe Search ───────────────────────────────────────────────────────────────
 async function loadSafeSearch() {
@@ -603,7 +599,7 @@ async function saveSafeSearch() {
     const s = await go().GetContentSettings()
     await go().SaveContentSettings('', { ...s, safeSearch: on })
     notify(t('toast.safesearch.saved'), 'ok')
-  } catch (e) { notify(String(e), 'err') }
+  } catch (e) { notify(errText(e), 'err') }
 }
 window.saveSafeSearch = saveSafeSearch
 
@@ -625,12 +621,12 @@ async function savePassword() {
     document.getElementById('pw-new').value     = ''
     document.getElementById('pw-confirm').value = ''
     notify(next ? t('toast.password.saved') : t('toast.password.removed'), 'ok')
-  } catch (e) { notify(String(e), 'err') }
+  } catch (e) { notify(errText(e), 'err') }
 }
 async function removePassword() {
   const current = document.getElementById('pw-current').value
   try { await go().SetPassword(current, ''); notify(t('toast.password.removed'), 'ok') }
-  catch (e) { notify(String(e), 'err') }
+  catch (e) { notify(errText(e), 'err') }
 }
 window.savePassword = savePassword
 window.removePassword = removePassword
@@ -641,7 +637,7 @@ async function saveAdvancedSettings() {
     const adv = await go().GetAdvancedSettings()
     await go().SaveAdvancedSettings('', { ...adv, disableDelayHours: delay })
     notify(t('toast.settings.saved'), 'ok')
-  } catch (e) { notify(String(e), 'err') }
+  } catch (e) { notify(errText(e), 'err') }
 }
 window.saveAdvancedSettings = saveAdvancedSettings
 
@@ -653,6 +649,9 @@ function syncLanguageSelect() {
   if (sel) sel.value = getLang()
 }
 
+// Guard against a reload cycle if the backend keeps disagreeing with what setLang persisted.
+const LANG_RELOAD_KEY = 'k10.langReload'
+
 async function reconcileLanguage() {
   let lang
   try {
@@ -662,11 +661,22 @@ async function reconcileLanguage() {
     console.warn('[i18n] GetLanguage unavailable — keeping the locally hinted language:', e)
     return
   }
-  if (!lang || lang === getLang()) { syncLanguageSelect(); return }
+  if (!lang || lang === getLang()) {
+    try { sessionStorage.removeItem(LANG_RELOAD_KEY) } catch (e) { /* storage unavailable */ }
+    syncLanguageSelect()
+    return
+  }
+  // Reload rather than patch: the second load rebuilds imperative text too, which applyI18n cannot.
+  let reloaded = false
+  try { reloaded = sessionStorage.getItem(LANG_RELOAD_KEY) === lang } catch (e) { /* storage unavailable */ }
+  if (reloaded) {
+    console.warn('[i18n] backend still reports "' + lang + '" after a reload — not reloading again')
+    syncLanguageSelect()
+    return
+  }
+  try { sessionStorage.setItem(LANG_RELOAD_KEY, lang) } catch (e) { /* storage unavailable */ }
   setLang(lang)
-  syncLanguageSelect()
-  applyI18n()
-  renderLevelCategoryLists()
+  window.location.reload()
 }
 
 // Persist to Go first, then reload so every rendered list is rebuilt.
@@ -674,9 +684,15 @@ async function changeLanguage(lang) {
   if (!lang || lang === getLang()) return
   try {
     await whenBackendReady()
+  } catch (e) {
+    notify(t('toast.backend.missing'), 'err')
+    syncLanguageSelect()
+    return
+  }
+  try {
     await go().SetLanguage(lang)
   } catch (e) {
-    notify(String(e).replace(/^Error: /, ''), 'err')
+    notify(errText(e), 'err')
     syncLanguageSelect()
     return
   }
@@ -700,7 +716,7 @@ async function saveAdvanced() {
   try {
     await go().SaveProxySettings({ proxyPort: port, autoStart })
     notify(t('toast.advanced.saved'), 'ok')
-  } catch (e) { notify(String(e), 'err') }
+  } catch (e) { notify(errText(e), 'err') }
 }
 async function installCA() {
   const btn = document.getElementById('btn-install-ca')
@@ -713,7 +729,7 @@ async function installCA() {
     status.textContent = t('advanced.ca.installed')
   } catch (e) {
     status.style.color = '#cc3333'
-    status.textContent = String(e)
+    status.textContent = errText(e)
   }
   btn.disabled = false
 }
@@ -791,7 +807,7 @@ function renderFocusSitesList(sites) {
   el.innerHTML = sites.map(s => {
     const checked = s.active ? 'checked' : ''
     const del = !s.builtin
-      ? `<a href="#" style="color:#cc2222;font-size:14px;font-weight:bold;text-decoration:none;margin-left:auto;padding:0 8px;flex-shrink:0"
+      ? `<a href="#" style="color:#cc2222;font-size:14px;font-weight:bold;text-decoration:none;margin-inline-start:auto;padding:0 8px;flex-shrink:0"
            onclick="removeFocusSite('${esc(s.domain).replace(/'/g,"\\'")}'); return false;">&times;</a>`
       : '<span style="width:28px;flex-shrink:0"></span>'
     return `<div style="display:flex;align-items:center;gap:8px;padding:5px 10px;border-bottom:1px solid #e8ecf2">
@@ -802,7 +818,6 @@ function renderFocusSitesList(sites) {
       ${del}
     </div>`
   }).join('')
-  applyI18n(el)
 }
 
 async function startFocusMode() {
@@ -813,7 +828,7 @@ async function startFocusMode() {
       ? t('toast.focus.started-min', { count: minutes })
       : t('toast.focus.started-hr',  { count: minutes / 60 }), 'ok')
     await loadFocusMode()
-  } catch (e) { notify(String(e), 'err') }
+  } catch (e) { notify(errText(e), 'err') }
 }
 
 async function stopFocusMode() {
@@ -825,7 +840,7 @@ async function stopFocusMode() {
     clearInterval(_focusCountdown)
     notify(t('toast.focus.stopped'), 'ok')
     await loadFocusMode()
-  } catch (e) { notify(String(e), 'err') }
+  } catch (e) { notify(errText(e), 'err') }
 }
 
 async function toggleFocusSite(domain, active) {
@@ -833,7 +848,7 @@ async function toggleFocusSite(domain, active) {
     await go().SetFocusSiteActive(domain, active)
     const sites = await go().GetFocusSites()
     renderFocusSitesList(sites)
-  } catch (e) { notify(String(e), 'err') }
+  } catch (e) { notify(errText(e), 'err') }
 }
 
 async function addFocusSite() {
@@ -846,7 +861,7 @@ async function addFocusSite() {
     const sites = await go().GetFocusSites()
     renderFocusSitesList(sites)
     notify(t('toast.focus.site-added'), 'ok')
-  } catch (e) { notify(String(e), 'err') }
+  } catch (e) { notify(errText(e), 'err') }
 }
 
 async function removeFocusSite(domain) {
@@ -855,7 +870,7 @@ async function removeFocusSite(domain) {
     const sites = await go().GetFocusSites()
     renderFocusSitesList(sites)
     notify(t('toast.focus.site-removed'), 'ok')
-  } catch (e) { notify(String(e), 'err') }
+  } catch (e) { notify(errText(e), 'err') }
 }
 
 window.startFocusMode  = startFocusMode
@@ -895,8 +910,9 @@ async function loadTimeRestrictions() {
       if (toEl)   toEl.value   = d.to   || '22:00'
       if (cbEl)   cbEl.checked = !!d.enabled
     })
-    applyI18n(document.getElementById('page-time') || document)
-  } catch (e) { notify(String(e), 'err') }
+    const timePage = document.getElementById('page-time')
+    if (timePage) applyI18n(timePage)
+  } catch (e) { notify(errText(e), 'err') }
 }
 window.loadTimeRestrictions = loadTimeRestrictions
 
@@ -915,7 +931,7 @@ async function saveTimeRestrictions() {
     })
     await go().SaveTimeRestrictions({ enabled, days })
     notify(t('toast.time.saved'))
-  } catch (e) { notify(String(e), 'err') }
+  } catch (e) { notify(errText(e), 'err') }
 }
 window.saveTimeRestrictions = saveTimeRestrictions
 
@@ -931,7 +947,7 @@ async function saveBlockingEffects() {
     const adv = await go().GetAdvancedSettings()
     await go().SaveAdvancedSettings('', { ...adv, blockedMessage: msg || adv.blockedMessage })
     notify(t('toast.effects.saved'), 'ok')
-  } catch (e) { notify(String(e), 'err') }
+  } catch (e) { notify(errText(e), 'err') }
 }
 window.loadBlockingEffects = loadBlockingEffects
 window.saveBlockingEffects = saveBlockingEffects
@@ -959,11 +975,16 @@ async function showUninstall() {
   const pw = hasPw ? await requirePassword(t('modal.require.uninstall')) : ''
   if (pw === null) return
   try { await go().Uninstall(pw || ''); notify(t('toast.uninstall.started'), 'ok') }
-  catch (e) { notify(String(e), 'err') }
+  catch (e) { notify(errText(e), 'err') }
 }
 window.showUninstall = showUninstall
 
 // ── Utility ───────────────────────────────────────────────────────────────────
+// FSI…PDI so an error mixing Hebrew, Latin identifiers and punctuation stays intact in an RTL container.
+function errText(e) {
+  return '\u2066' + String(e).replace(/^Error: /, '') + '\u2069'
+}
+
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
 }
@@ -1015,7 +1036,7 @@ async function confirmQuit() {
     await go().ConfirmQuit(pw)
   } catch (e) {
     const errEl = document.getElementById('quit-err')
-    errEl.textContent = String(e).replace(/^Error: /, '')
+    errEl.textContent = errText(e)
     errEl.style.display = 'block'
     document.getElementById('quit-pw').select()
   }

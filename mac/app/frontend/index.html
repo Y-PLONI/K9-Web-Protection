@@ -1,8 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="he" dir="rtl">
 <head>
   <meta charset="utf-8" />
   <script>window.APP_PLATFORM='mac'</script>
+  <!-- Pre-paint language hint; key mirrors STORAGE_KEY in src/i18n/index.js. -->
+  <script>try{var l=localStorage.getItem('k10.lang');if(l==='en'||l==='he'){document.documentElement.lang=l;document.documentElement.dir=l==='he'?'rtl':'ltr'}}catch(e){}</script>
   <title data-i18n="nav.header.title"></title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -769,7 +771,7 @@
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>
           <span data-i18n="advanced.ca.button"></span>
         </button>
-        <span id="ca-status" style="font-size:10px;color:#555;margin-left:8px"></span>
+        <span id="ca-status" style="font-size:10px;color:#555;margin-inline-start:8px"></span>
       </div>
 
     </div><!-- /page-advanced -->

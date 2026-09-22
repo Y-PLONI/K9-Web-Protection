@@ -1,7 +1,4 @@
 {
-  "_translator.advanced.ca.desc.mac": "TRANSLATOR: holds the glyph U+2192; use U+2190 in RTL.",
-  "_translator.advanced.ca.installed.mac": "TRANSLATOR: holds the glyph U+2192; use U+2190 in RTL.",
-  "_translator.common.glyph.list-bullet": "TRANSLATOR: directional glyph; use U+25C0 in RTL.",
   "nav.header.title": "K10 Web Protection Administration",
   "nav.status.active": "Active",
   "nav.status.inactive": "Inactive",

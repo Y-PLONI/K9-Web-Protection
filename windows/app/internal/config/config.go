@@ -2,8 +2,6 @@ package config
 
 import (
 	"encoding/json"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -48,13 +46,24 @@ type FocusSite struct {
 }
 
 type Config struct {
-	mu   sync.RWMutex `json:"-"`
-	path string       `json:"-"`
+	mu       sync.RWMutex
+	saveMu   sync.Mutex
+	path     string
+	readOnly bool
+	diag     Diagnostics
+
+	loadFailed bool
+
+	SettingsVersion int `json:"settingsVersion"`
 
 	// User-added lists
-	UserBlocklist []string `json:"userBlocklist"`
-	UserAllowlist []string `json:"userAllowlist"`
-	UserKeywords  []string `json:"userKeywords"`
+	BlockRules   []DomainRule `json:"blockRules"`
+	AllowRules   []DomainRule `json:"allowRules"`
+	UserKeywords []string     `json:"userKeywords"`
+
+	// Pre-v3 lists, read only for migration
+	UserBlocklist []string `json:"userBlocklist,omitempty"`
+	UserAllowlist []string `json:"userAllowlist,omitempty"`
 
 	// Content blocking toggles
 	FilterLevel       string `json:"filterLevel"` // high|default|moderate|minimal|monitor|custom
@@ -81,11 +90,6 @@ type Config struct {
 	Stats        Stats  `json:"stats"`
 }
 
-func configDir() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".k10webprotection")
-}
-
 // legacyBlockedMessage is the pre-i18n English default, still recognised as "untouched".
 const legacyBlockedMessage = "This website has been blocked to help you stay focused and protected."
 
@@ -94,12 +98,10 @@ func isDefaultBlockedMessage(msg, lang string) bool {
 	return msg == "" || msg == legacyBlockedMessage || msg == i18n.TIn(lang, "config.blockedMessageDefault")
 }
 
-func Load() *Config {
-	dir := configDir()
-	os.MkdirAll(dir, 0700)
-	path := filepath.Join(dir, "config.json")
+const defaultPasswordHash = "$2a$10$N47D4hTSf6Ftc78KPruW1eSLFRO2rw9UBhA9So.arPPPAV..Qijg2"
 
-	c := &Config{
+func newConfig(path string) *Config {
+	return &Config{
 		path:              path,
 		Language:          "",
 		ProxyPort:         8080,
@@ -108,15 +110,15 @@ func Load() *Config {
 		BlockImageSearch:  false,
 		BlockYouTube:      false,
 		SafeSearch:        true,
-		PasswordHash:      "$2a$10$N47D4hTSf6Ftc78KPruW1eSLFRO2rw9UBhA9So.arPPPAV..Qijg2",
+		PasswordHash:      defaultPasswordHash,
+		BlockRules:        []DomainRule{},
+		AllowRules:        []DomainRule{},
 		Stats:             Stats{LastReset: time.Now()},
 	}
+}
 
-	data, err := os.ReadFile(path)
-	if err == nil {
-		json.Unmarshal(data, c)
-		c.path = path
-	}
+// finish applies language and default-content fixups after any load path.
+func (c *Config) finish() {
 	// Load is the single place that activates the configured language.
 	// Empty stays empty — the frontend detects the environment and persists it via SetLanguage.
 	i18n.SetLang(c.Language)
@@ -132,7 +134,6 @@ func Load() *Config {
 	if len(c.TimeRestrictions.Days) == 0 {
 		c.TimeRestrictions.Days = defaultDayRestrictions()
 	}
-	return c
 }
 
 func defaultDayRestrictions() []DayRestriction {
@@ -169,13 +170,19 @@ func defaultFocusSites() []FocusSite {
 }
 
 func (c *Config) Save() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	if c.readOnly {
+		return ErrReadOnly
+	}
+	c.saveMu.Lock()
+	defer c.saveMu.Unlock()
+	c.mu.RLock()
 	data, err := json.MarshalIndent(c, "", "  ")
+	path := c.path
+	c.mu.RUnlock()
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(c.path, data, 0600)
+	return writeFileAtomic(path, data)
 }
 
 // ── Language ──────────────────────────────────────────────────────────────────
@@ -358,44 +365,6 @@ func (c *Config) ClearDisableRequest() {
 	c.DisableRequestedAt = nil
 }
 
-// ── User block list ───────────────────────────────────────────────────────────
-
-func (c *Config) GetUserBlocklist() []string {
-	c.mu.RLock(); defer c.mu.RUnlock()
-	out := make([]string, len(c.UserBlocklist))
-	copy(out, c.UserBlocklist); return out
-}
-func (c *Config) AddUserBlocklist(domain string) {
-	c.mu.Lock(); defer c.mu.Unlock()
-	for _, d := range c.UserBlocklist { if d == domain { return } }
-	c.UserBlocklist = append(c.UserBlocklist, domain)
-}
-func (c *Config) RemoveUserBlocklist(domain string) {
-	c.mu.Lock(); defer c.mu.Unlock()
-	out := c.UserBlocklist[:0]
-	for _, d := range c.UserBlocklist { if d != domain { out = append(out, d) } }
-	c.UserBlocklist = out
-}
-
-// ── User allow list ───────────────────────────────────────────────────────────
-
-func (c *Config) GetUserAllowlist() []string {
-	c.mu.RLock(); defer c.mu.RUnlock()
-	out := make([]string, len(c.UserAllowlist))
-	copy(out, c.UserAllowlist); return out
-}
-func (c *Config) AddUserAllowlist(domain string) {
-	c.mu.Lock(); defer c.mu.Unlock()
-	for _, d := range c.UserAllowlist { if d == domain { return } }
-	c.UserAllowlist = append(c.UserAllowlist, domain)
-}
-func (c *Config) RemoveUserAllowlist(domain string) {
-	c.mu.Lock(); defer c.mu.Unlock()
-	out := c.UserAllowlist[:0]
-	for _, d := range c.UserAllowlist { if d != domain { out = append(out, d) } }
-	c.UserAllowlist = out
-}
-
 // ── User keywords ─────────────────────────────────────────────────────────────
 
 func (c *Config) GetUserKeywords() []string {
@@ -417,18 +386,6 @@ func (c *Config) RemoveUserKeyword(kw string) {
 
 // ── Proxy helpers ─────────────────────────────────────────────────────────────
 
-func (c *Config) IsAllowed(host string) bool {
-	c.mu.RLock(); defer c.mu.RUnlock()
-	for _, d := range c.UserAllowlist { if d == host { return true } }
-	return false
-}
-func (c *Config) UserBlocks(host string) bool {
-	c.mu.RLock(); defer c.mu.RUnlock()
-	for _, d := range c.UserBlocklist {
-		if d == host || hasSuffix(host, "."+d) { return true }
-	}
-	return false
-}
 func (c *Config) UserKeywordMatch(url string) bool {
 	c.mu.RLock(); defer c.mu.RUnlock()
 	u := toLower(url)

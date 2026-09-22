@@ -1,0 +1,40 @@
+{
+  "userBlocklist": [
+    "example.com",
+    "WWW.Example.net.",
+    "https://example.org/",
+    "example.com",
+    "not a domain",
+    "example.io/path"
+  ],
+  "userAllowlist": [
+    "mail.google.com",
+    "Docs.Google.com"
+  ],
+  "userKeywords": [
+    "kw1",
+    "kw2"
+  ],
+  "blockAdultContent": true,
+  "blockImageSearch": true,
+  "blockYouTube": false,
+  "safeSearch": false,
+  "disableDelayHours": 2,
+  "disableRequestedAt": "2024-05-01T10:00:00Z",
+  "blockedMessage": "Custom message kept by the user.",
+  "focusModeUntil": "2024-01-01T00:00:00Z",
+  "passwordHash": "$2a$10$v2v2v2v2v2v2v2v2v2v2v2v2v2v2v2v2v2v2v2v2v2v2v2v2v2v2v",
+  "proxyPort": 8181,
+  "autoStart": false,
+  "stats": {
+    "totalBlocked": 7,
+    "blockedToday": 2,
+    "lastReset": "2024-04-30T00:00:00Z",
+    "topBlocked": [
+      {
+        "domain": "example.com",
+        "count": 5
+      }
+    ]
+  }
+}

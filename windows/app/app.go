@@ -22,6 +22,7 @@ import (
 	"k10webprotection/internal/config"
 	"k10webprotection/internal/database"
 	"k10webprotection/internal/hosts"
+	"k10webprotection/internal/i18n"
 	"k10webprotection/internal/proxy"
 )
 
@@ -180,16 +181,15 @@ func (a *App) EnableProtection() error {
 
 func (a *App) DisableProtection(password string) error {
 	if a.cfg.PasswordHash != "" && !a.verifyPassword(password) {
-		return errors.New("incorrect password")
+		return errors.New(i18n.T("err.incorrectPassword"))
 	}
 	if a.cfg.InFocusMode() {
 		rem := int(a.cfg.FocusModeRemaining().Minutes())
-		return fmt.Errorf("focus mode is active — %d min remaining", rem)
+		return errors.New(i18n.T("err.focusModeActive", rem))
 	}
 	allowed, remaining := a.cfg.DisableAllowed()
 	if !allowed {
-		return fmt.Errorf("disable delay active — %.0f hours remaining",
-			remaining.Hours())
+		return errors.New(i18n.T("err.disableDelayActive", remaining.Hours()))
 	}
 	a.cfg.ClearDisableRequest()
 	a.proxy.Stop()
@@ -200,7 +200,7 @@ func (a *App) DisableProtection(password string) error {
 
 func (a *App) RequestDisable() error {
 	if a.cfg.DisableDelayHours <= 0 {
-		return errors.New("no delay configured")
+		return errors.New(i18n.T("err.noDelayConfigured"))
 	}
 	a.cfg.RequestDisable()
 	return a.cfg.Save()
@@ -230,7 +230,7 @@ func (a *App) GetBlocklist() BlocklistData {
 func (a *App) AddToBlocklist(domain string) error {
 	domain = cleanDomain(domain)
 	if domain == "" {
-		return errors.New("invalid domain")
+		return errors.New(i18n.T("err.invalidDomain"))
 	}
 	a.cfg.AddUserBlocklist(domain)
 	return a.cfg.Save()
@@ -248,7 +248,7 @@ func (a *App) GetAllowlist() []string { return a.cfg.GetUserAllowlist() }
 func (a *App) AddToAllowlist(domain string) error {
 	domain = cleanDomain(domain)
 	if domain == "" {
-		return errors.New("invalid domain")
+		return errors.New(i18n.T("err.invalidDomain"))
 	}
 	a.cfg.AddUserAllowlist(domain)
 	return a.cfg.Save()
@@ -271,7 +271,7 @@ func (a *App) GetKeywords() KeywordsData {
 func (a *App) AddKeyword(keyword string) error {
 	keyword = strings.TrimSpace(strings.ToLower(keyword))
 	if keyword == "" {
-		return errors.New("empty keyword")
+		return errors.New(i18n.T("err.emptyKeyword"))
 	}
 	a.cfg.AddUserKeyword(keyword)
 	return a.cfg.Save()
@@ -294,6 +294,19 @@ func (a *App) GetContentSettings() ContentSettings {
 	}
 }
 
+// GetLevelCategories returns the category identifiers each standard filter
+// level blocks, so the UI can render preset contents without keeping its own
+// copy of the mapping. The order within each level is preserved.
+func (a *App) GetLevelCategories() map[string][]string {
+	out := make(map[string][]string, len(proxy.LevelCategories))
+	for level, cats := range proxy.LevelCategories {
+		c := make([]string, len(cats))
+		copy(c, cats)
+		out[level] = c
+	}
+	return out
+}
+
 // SetFilterLevel saves a standard filter level without requiring a password.
 func (a *App) SetFilterLevel(level string) error {
 	switch level {
@@ -308,7 +321,7 @@ func (a *App) SetFilterLevel(level string) error {
 
 func (a *App) SaveContentSettings(password string, s ContentSettings) error {
 	if a.cfg.PasswordHash != "" && !a.verifyPassword(password) {
-		return errors.New("incorrect password")
+		return errors.New(i18n.T("err.incorrectPassword"))
 	}
 	a.cfg.FilterLevel = s.FilterLevel
 	a.cfg.BlockAdultContent = s.BlockAdultContent
@@ -322,6 +335,26 @@ func (a *App) SaveContentSettings(password string, s ContentSettings) error {
 	return nil
 }
 
+// ── Language ──────────────────────────────────────────────────────────────────
+
+// GetLanguage returns the language the backend is currently rendering in.
+func (a *App) GetLanguage() string { return i18n.Lang() }
+
+// SetLanguage switches the backend language and persists it, so the window
+// title and the proxy block page stay in step with the language shown in
+// the UI.
+func (a *App) SetLanguage(lang string) error {
+	switch lang {
+	case "he", "en":
+		// supported
+	default:
+		return errors.New(i18n.T("err.unsupportedLanguage"))
+	}
+	i18n.SetLang(lang)
+	a.cfg.Language = lang
+	return a.cfg.Save()
+}
+
 // ── Advanced Settings ─────────────────────────────────────────────────────────
 
 func (a *App) GetAdvancedSettings() AdvancedSettings {
@@ -333,7 +366,7 @@ func (a *App) GetAdvancedSettings() AdvancedSettings {
 
 func (a *App) SaveAdvancedSettings(password string, s AdvancedSettings) error {
 	if a.cfg.PasswordHash != "" && !a.verifyPassword(password) {
-		return errors.New("incorrect password")
+		return errors.New(i18n.T("err.incorrectPassword"))
 	}
 	a.cfg.DisableDelayHours = s.DisableDelayHours
 	if s.BlockedMessage != "" {
@@ -350,7 +383,7 @@ func (a *App) GetProxySettings() ProxySettings {
 
 func (a *App) SaveProxySettings(s ProxySettings) error {
 	if s.ProxyPort < 1024 || s.ProxyPort > 65535 {
-		return errors.New("port must be between 1024 and 65535")
+		return errors.New(i18n.T("err.portRange"))
 	}
 	a.cfg.ProxyPort = s.ProxyPort
 	a.cfg.AutoStart = s.AutoStart
@@ -361,7 +394,7 @@ func (a *App) SaveProxySettings(s ProxySettings) error {
 
 func (a *App) StartFocusMode(minutes int) error {
 	if minutes < 1 || minutes > 1440 {
-		return errors.New("duration must be between 1 and 1440 minutes")
+		return errors.New(i18n.T("err.focusDurationRange"))
 	}
 	a.cfg.SetFocusMode(minutes)
 	return a.cfg.Save()
@@ -369,7 +402,7 @@ func (a *App) StartFocusMode(minutes int) error {
 
 func (a *App) StopFocusMode(password string) error {
 	if a.cfg.PasswordHash != "" && !a.verifyPassword(password) {
-		return errors.New("incorrect password")
+		return errors.New(i18n.T("err.incorrectPassword"))
 	}
 	a.cfg.StopFocusMode()
 	return a.cfg.Save()
@@ -396,7 +429,7 @@ func (a *App) SetFocusSiteActive(domain string, active bool) error {
 func (a *App) AddFocusSite(domain string) error {
 	domain = cleanDomain(domain)
 	if domain == "" {
-		return errors.New("invalid domain")
+		return errors.New(i18n.T("err.invalidDomain"))
 	}
 	a.cfg.AddFocusSite(domain)
 	return a.cfg.Save()
@@ -426,7 +459,7 @@ func (a *App) VerifyPassword(password string) bool { return a.verifyPassword(pas
 
 func (a *App) SetPassword(current, newPass string) error {
 	if a.cfg.PasswordHash != "" && !a.verifyPassword(current) {
-		return errors.New("incorrect current password")
+		return errors.New(i18n.T("err.incorrectCurrentPassword"))
 	}
 	if newPass == "" {
 		a.cfg.PasswordHash = ""
@@ -442,7 +475,7 @@ func (a *App) SetPassword(current, newPass string) error {
 
 func (a *App) ConfirmQuit(password string) error {
 	if !a.verifyPassword(password) {
-		return errors.New("incorrect password")
+		return errors.New(i18n.T("err.incorrectPassword"))
 	}
 	atomic.StoreInt32(&a.quitAuth, 1)
 	wailsruntime.Quit(a.ctx)
@@ -460,7 +493,7 @@ func (a *App) verifyPassword(p string) bool {
 
 func (a *App) Uninstall(password string) error {
 	if a.cfg.PasswordHash != "" && !a.verifyPassword(password) {
-		return errors.New("incorrect password")
+		return errors.New(i18n.T("err.incorrectPassword"))
 	}
 
 	home, _ := os.UserHomeDir()
@@ -510,7 +543,7 @@ Remove-Item -Path $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyConti
 
 	tmp, err := os.CreateTemp("", "k10-uninstall-*.ps1")
 	if err != nil {
-		return fmt.Errorf("could not prepare uninstall script: %w", err)
+		return fmt.Errorf(i18n.T("err.prepareUninstallScript")+": %w", err)
 	}
 	scriptPath := tmp.Name()
 	tmp.WriteString(cleanupScript)
@@ -528,7 +561,7 @@ Remove-Item -Path $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyConti
 	)
 	if err := cmd.Run(); err != nil {
 		os.Remove(scriptPath)
-		return fmt.Errorf("administrator privileges required to complete uninstall: %w", err)
+		return fmt.Errorf(i18n.T("err.uninstallNeedsAdmin")+": %w", err)
 	}
 
 	go func() {
@@ -548,7 +581,7 @@ func (a *App) CACertPath() string { return proxy.CACertPath() }
 func (a *App) InstallCACert() error {
 	certPath := proxy.CACertPath()
 	if _, err := os.Stat(certPath); err != nil {
-		return fmt.Errorf("CA certificate not found — enable protection first")
+		return errors.New(i18n.T("err.caCertNotFound"))
 	}
 
 	script := fmt.Sprintf(
@@ -557,7 +590,7 @@ func (a *App) InstallCACert() error {
 	)
 	tmp, err := os.CreateTemp("", "k10-ca-install-*.ps1")
 	if err != nil {
-		return fmt.Errorf("could not prepare install script: %w", err)
+		return fmt.Errorf(i18n.T("err.prepareInstallScript")+": %w", err)
 	}
 	scriptPath := tmp.Name()
 	tmp.WriteString(script)
@@ -570,7 +603,7 @@ func (a *App) InstallCACert() error {
 		),
 	)
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("administrator access required to install CA certificate: %w", err)
+		return fmt.Errorf(i18n.T("err.caInstallNeedsAdmin")+": %w", err)
 	}
 	return nil
 }
@@ -593,7 +626,7 @@ func (a *App) startProxyAndWait() error {
 	for time.Now().Before(deadline) {
 		select {
 		case err := <-errCh:
-			return fmt.Errorf("proxy failed to start: %w", err)
+			return fmt.Errorf(i18n.T("err.proxyFailedToStart")+": %w", err)
 		default:
 		}
 		conn, err := net.DialTimeout("tcp", addr, 100*time.Millisecond)
@@ -603,7 +636,7 @@ func (a *App) startProxyAndWait() error {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	return fmt.Errorf("proxy did not start on port %d within 5 seconds", a.cfg.ProxyPort)
+	return errors.New(i18n.T("err.proxyStartTimeout", a.cfg.ProxyPort))
 }
 
 // setSystemProxy sets or clears the Windows system-wide HTTP/HTTPS proxy via registry.

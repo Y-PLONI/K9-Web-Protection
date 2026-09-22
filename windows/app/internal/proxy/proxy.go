@@ -12,13 +12,14 @@ import (
 
 	"k10webprotection/internal/config"
 	"k10webprotection/internal/database"
+	"k10webprotection/internal/i18n"
 )
 
 const blockPageTpl = `<!DOCTYPE html>
-<html lang="en">
+<html lang="%[1]s" dir="%[2]s">
 <head>
 <meta charset="utf-8">
-<title>Blocked — K10 Web Protection</title>
+<title>%[3]s</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Helvetica Neue',Arial,sans-serif;background:#d4d0c8;display:flex;align-items:center;justify-content:center;padding:20px}
@@ -52,7 +53,7 @@ h1{font-size:20px;font-weight:800;color:#144985;margin-bottom:14px}
         <polyline points="9 12 11 14 15 10" stroke="white" stroke-width="2.2"/>
       </svg>
     </div>
-    <div class="hdr-title">K10 Web Protection Administration</div>
+    <div class="hdr-title">%[4]s</div>
   </div>
   <div class="body">
     <div class="icon-wrap">
@@ -62,28 +63,42 @@ h1{font-size:20px;font-weight:800;color:#144985;margin-bottom:14px}
         <line x1="9" y1="9" x2="15" y2="15" stroke="#cc3333" stroke-width="2.2"/>
       </svg>
     </div>
-    <div class="chip">Access Blocked</div>
-    <h1>This website has been blocked</h1>
+    <div class="chip">%[5]s</div>
+    <h1>%[6]s</h1>
     <div class="domain-row">
-      <span class="domain-label">Site:</span>
-      <div class="domain-val">%s</div>
+      <span class="domain-label">%[7]s</span>
+      <div class="domain-val">%[8]s</div>
     </div>
-    <p class="msg">This website has been blocked by K10 Web Protection because it may contain adult content, malware, phishing attempts, or other material that violates your configured filtering policy.</p>
+    <p class="msg">%[9]s</p>
     <div class="chips-row">
-      <div class="info-chip">Filtered by K10 Web Protection</div>
-      <div class="info-chip">Contact your administrator to request access</div>
+      <div class="info-chip">%[10]s</div>
+      <div class="info-chip">%[11]s</div>
     </div>
   </div>
   <div class="ftr-bar">
     <div class="brand">K10<span class="brand-star">&#9733;</span>WebProtection<span class="brand-ver">PRO</span></div>
   </div>
-  <div class="ftr-copy">Copyright &copy; 2024&ndash;2026 K10WebProtection &mdash; All Rights Reserved.</div>
+  <div class="ftr-copy">%[12]s</div>
 </div>
 </body>
 </html>`
 
 func blockPageHTML(domain string) string {
-	return fmt.Sprintf(blockPageTpl, html.EscapeString(domain))
+	// Argument order must match the %[n]s indexes used in blockPageTpl.
+	return fmt.Sprintf(blockPageTpl,
+		i18n.Lang(),                  // 1  <html lang>
+		i18n.Dir(),                   // 2  <html dir>
+		i18n.T("block.pageTitle"),    // 3
+		i18n.T("block.headerTitle"),  // 4
+		i18n.T("block.chip"),         // 5
+		i18n.T("block.heading"),      // 6
+		i18n.T("block.siteLabel"),    // 7
+		html.EscapeString(domain),    // 8
+		i18n.T("block.message"),      // 9
+		i18n.T("block.chipFiltered"), // 10
+		i18n.T("block.chipContact"),  // 11
+		i18n.T("block.copyright"),    // 12
+	)
 }
 
 type OnBlockFn func(domain string)

@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"k10webprotection/internal/i18n"
 )
 
 type Stats struct {
@@ -72,6 +74,7 @@ type Config struct {
 	TimeRestrictions TimeRestrictions `json:"timeRestrictions"`
 
 	// System
+	Language     string `json:"language"` // "he" | "en"
 	PasswordHash string `json:"passwordHash"`
 	ProxyPort    int    `json:"proxyPort"`
 	AutoStart    bool   `json:"autoStart"`
@@ -90,13 +93,13 @@ func Load() *Config {
 
 	c := &Config{
 		path:              path,
+		Language:          i18n.DefaultLang,
 		ProxyPort:         8080,
 		AutoStart:         true,
 		BlockAdultContent: true,
 		BlockImageSearch:  false,
 		BlockYouTube:      false,
 		SafeSearch:        true,
-		BlockedMessage:    "This website has been blocked to help you stay focused and protected.",
 		PasswordHash:      "$2a$10$N47D4hTSf6Ftc78KPruW1eSLFRO2rw9UBhA9So.arPPPAV..Qijg2",
 		Stats:             Stats{LastReset: time.Now()},
 	}
@@ -105,6 +108,14 @@ func Load() *Config {
 	if err == nil {
 		json.Unmarshal(data, c)
 		c.path = path
+	}
+	// Activate the configured language before resolving localized defaults.
+	if c.Language == "" {
+		c.Language = i18n.DefaultLang
+	}
+	i18n.SetLang(c.Language)
+	if c.BlockedMessage == "" {
+		c.BlockedMessage = i18n.T("config.blockedMessageDefault")
 	}
 	if len(c.FocusSites) == 0 {
 		c.FocusSites = defaultFocusSites()

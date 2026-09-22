@@ -10,16 +10,22 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
+
+	"k10webprotection/internal/config"
+	"k10webprotection/internal/i18n"
 )
 
 //go:embed all:frontend/dist
 var assets embed.FS
 
 func main() {
+	// Resolve the UI language before the window is created.
+	i18n.SetLang(config.Load().Language)
+
 	app := NewApp()
 
 	err := wails.Run(&options.App{
-		Title:         "K10 Web Protection",
+		Title:         i18n.T("app.title"),
 		Width:         960,
 		Height:        660,
 		MinWidth:      960,

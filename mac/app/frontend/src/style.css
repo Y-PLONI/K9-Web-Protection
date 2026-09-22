@@ -167,7 +167,7 @@ html, body {
 .k9-sidebar {
   width: var(--sidebar-w);
   background: #fff;
-  border-right: 1px solid #c0c0c0;
+  border-inline-end: 1px solid #c0c0c0;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -211,7 +211,7 @@ html, body {
   font-weight: 600;
   text-decoration: none;
   cursor: pointer;
-  border-left: 3px solid transparent;
+  border-inline-start: 3px solid transparent;
   transition: all 0.1s;
   font-family: 'Inter', sans-serif;
 }
@@ -220,7 +220,7 @@ html, body {
 #subMenu li.selected .slink,
 #subMenu .slink.selected {
   color: #8b0000;
-  border-left-color: var(--gold);
+  border-inline-start-color: var(--gold);
   background: #faf8f4;
 }
 
@@ -283,7 +283,7 @@ html, body {
 .info-box {
   background: #eef3ff;
   border: 1px solid var(--border);
-  border-left: 3px solid var(--navy);
+  border-inline-start: 3px solid var(--navy);
   padding: 7px 10px;
   font-size: 11px;
   color: #333;
@@ -383,7 +383,7 @@ html, body {
   margin-bottom: 3px;
   font-size: 10px;
 }
-.dash-bar-label { width: 70px; text-align: right; color: var(--text-light); font-weight: 600; flex-shrink: 0; }
+.dash-bar-label { width: 70px; text-align: end; color: var(--text-light); font-weight: 600; flex-shrink: 0; }
 .dash-bar-track {
   flex: 1;
   height: 11px;
@@ -403,7 +403,9 @@ html, body {
   font-size: 10px;
 }
 .dash-recent-time { width: 42px; color: #999; font-weight: 500; flex-shrink: 0; font-variant-numeric: tabular-nums; }
-.dash-recent-url  { flex: 1; color: var(--text); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dash-recent-url  { flex: 1; color: var(--text); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                    /* URLs stay LTR */
+                    direction: ltr; unicode-bidi: isolate; text-align: start; }
 .dash-recent-cat  { font-size: 9px; font-weight: 600; padding: 1px 5px; border-radius: 2px; flex-shrink: 0; }
 
 .dash-quick-actions { display: flex; gap: 6px; margin-top: 8px; }
@@ -436,7 +438,7 @@ html, body {
 .k9-tbl th {
   background: var(--navy);
   color: #fff;
-  text-align: left;
+  text-align: start;
   padding: 3px 6px;
   font-weight: 700;
 }
@@ -445,7 +447,7 @@ html, body {
   border: 1px solid #c0c8d8;
 }
 .k9-tbl tr:nth-child(even) td { background: #f0f4fa; }
-.k9-tbl th.r, .k9-tbl td.r { text-align: right; }
+.k9-tbl th.r, .k9-tbl td.r { text-align: end; }
 .lbl { font-weight: 600; color: #333; width: 200px; }
 .num { font-size: 13px; font-weight: 700; color: var(--navy); }
 .muted { color: #888; font-style: italic; }
@@ -550,7 +552,8 @@ html, body {
 .sel-desc    { color: var(--red); }
 
 .cat-box {
-  padding: 8px 10px 8px 30px;
+  padding-block: 8px;
+  padding-inline: 30px 10px;
   background: #fff;
   border-top: 1px solid #c0c0c0;
 }
@@ -599,6 +602,13 @@ html, body {
 }
 .exc-item:last-child { border-bottom: none; }
 
+.exc-domain {
+  /* domains stay LTR */
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: start;
+}
+
 .rm-btn {
   background: none; border: none;
   color: var(--red); cursor: pointer;
@@ -630,6 +640,12 @@ html, body {
 }
 .k9-select:focus { outline: 1px solid var(--navy); border-color: var(--navy); }
 
+/* fixed width: no reflow on language switch */
+#setting-language {
+  min-width: 120px;
+  text-align: start;
+}
+
 /* ── PASSWORD PAGE ───────────────────────────────────────────────────────── */
 .pw-form { max-width: 320px; }
 .pw-field { margin-bottom: 6px; }
@@ -658,7 +674,7 @@ html, body {
 .brand-logo { display: flex; align-items: baseline; }
 .brand-k    { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 900; color: #fff; letter-spacing: 0.3px; }
 .brand-star { color: var(--gold); font-size: 11px; margin: 0 2px; }
-.brand-sub  { font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 600; color: #8bb8e8; letter-spacing: 0.5px; margin-left: 2px; }
+.brand-sub  { font-family: 'Inter', sans-serif; font-size: 9px; font-weight: 600; color: #8bb8e8; letter-spacing: 0.5px; margin-inline-start: 2px; }
 
 .k9-footer-copy {
   position: fixed;
@@ -747,7 +763,7 @@ html, body {
   gap: 10px;
   background: #fff8e1;
   border: 1px solid #f0a500;
-  border-left: 4px solid var(--red);
+  border-inline-start: 4px solid var(--red);
   padding: 6px 10px;
   margin-bottom: 10px;
   font-size: 11px;
@@ -762,6 +778,13 @@ html, body {
 .cat-gamble   { background: #e8f0fe; color: #1e40af; }
 .cat-violence { background: #f3e8fe; color: #6b21a8; }
 .cat-other    { background: #f0f0f0; color: #444; }
+
+/* LTR text utility: versions, paths, hostnames */
+.ltr-text {
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: start;
+}
 
 /* ── SCROLLBAR ───────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar       { width: 7px; }
